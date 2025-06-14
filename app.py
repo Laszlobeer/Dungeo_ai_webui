@@ -5,8 +5,10 @@ import subprocess
 import re
 import logging
 import datetime
+import time
+import traceback
 from collections import defaultdict
-from flask import Flask, render_template, request, session, jsonify, redirect, url_for
+from flask import Flask, render_template, request, session, jsonify, redirect, url_for, Response
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -23,7 +25,47 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
+OLLAMA_API_URL = "http://localhost:11434/api/generate"
+OLLAMA_HEALTH_URL = "http://localhost:11434/api/tags"
 ALLTALK_API_URL = "http://localhost:7851/api/tts-generate"
+
+# Enhanced DM system prompt
+DM_SYSTEM_PROMPT = """
+
+You are a masterful Dungeon Master guiding {character_name}, a {role} in a {genre} adventure. 
+Craft IMMEDIATE and PERMANENT consequences for every action. Follow these rules:
+
+1. ACTION-CONSEQUENCE SYSTEM:
+   - Describe ONLY the outcomes of player actions and world events
+   - NEVER speak for the player or perform actions on their behalf
+   - Consequences must logically follow from the action
+   - Describe consequences naturally within your narration
+   - Small actions create ripple effects through the narrative
+
+2. RESPONSE STYLE:
+   - Respond in natural narrative prose, NEVER in bullet points or structured formats
+   - Weave consequences seamlessly into your descriptions
+   - NEVER use labels like "a) b) c)" or "Immediate consequence:"
+   - Show, don't tell - demonstrate consequences through storytelling
+   - Focus on describing environments, NPC actions, and world reactions
+
+3. ROLE GUIDELINES:
+   - Set the scene and describe situations
+   - Play NPCs with distinct personalities and motivations
+   - Describe environmental changes and world events
+   - React to player choices as the world would
+   - NEVER control the player character or speak for the player
+
+4. WORLD EVOLUTION:
+   - NPCs remember player choices and react accordingly
+   - Environments change permanently based on actions
+   - Player choices open/close future narrative paths
+   - Resources are gained/lost permanently
+
+Current World State:
+{player_choices}
+"""
+
 
 # Initialize session data
 def init_session():
@@ -75,6 +117,17 @@ BANWORDS = load_banwords()
 # Function to retrieve installed Ollama models via CLI
 def get_installed_models():
     try:
+        # First try API method
+        response = requests.get(OLLAMA_HEALTH_URL, timeout=5)
+        if response.status_code == 200:
+            models = [model['name'] for model in response.json().get('models', [])]
+            logging.info(f"Found {len(models)} models via API")
+            return models
+    except:
+        pass
+    
+    try:
+        # Fallback to CLI method
         result = subprocess.run(
             ["ollama", "list"], capture_output=True, text=True, check=True
         )
@@ -84,7 +137,7 @@ def get_installed_models():
             parts = line.split()
             if parts:
                 models.append(parts[0])
-        logging.info(f"Found {len(models)} installed models")
+        logging.info(f"Found {len(models)} installed models via CLI")
         return models
     except FileNotFoundError:
         logging.warning("Ollama not found. Using default models.")
@@ -96,61 +149,77 @@ def get_installed_models():
 # Role-specific starting scenarios
 ROLE_STARTERS = {
     "Fantasy": {
-        "Peasant": "You're toiling in the fields of a small village when",
-        "Noble": "You're overseeing your estate's affairs when",
-        "Mage": "You're studying ancient tomes in your tower when",
-        "Knight": "You're training in the castle courtyard when",
-        "Ranger": "You're tracking game in the deep forest when",
-        "Thief": "You're casing a noble's manor in the city when",
-        "Bard": "You're performing in a crowded tavern when",
-        "Cleric": "You're tending to the sick in the temple when",
-        "Assassin": "You're preparing for a contract in the shadows when",
-        "Paladin": "You're praying at the altar of your deity when"
+        "Noble": "You're presiding over the royal court when a bloodied messenger bursts through the doors, gasping about an invading force at the city gates.",
+        "Peasant": "You're harvesting turnips in muddy fields when a meteor crashes nearby, revealing a pulsating crystalline artifact.",
+        "Mage": "While translating forbidden runes in your sanctum, the arcane wards suddenly shatter as shadowy tendrils burst from your summoning circle.",
+        "Knight": "During your oath-swearing ceremony, assassins leap from the cathedral rafters, their blades aimed at the king.",
+        "Ranger": "Tracking a wounded direwolf, you stumble upon an elven massacre site - arrows still quivering in ancient oaks.",
+        "Alchemist": "Your volatile mixture begins glowing with unearthly light seconds before the laboratory door explodes inward.",
+        "Thief": "Midway through cracking the Duke's vault, magical alarms wail as armored boots echo down the marble corridor.",
+        "Bard": "During your tavern performance, a dying soldier collapses on stage, pressing a bloodstained map into your hands.",
+        "Cleric": "While administering last rites, the corpse's eyes snap open, speaking with your deity's unmistakable voice.",
+        "Druid": "The ancient forest whispers warnings moments before unnatural flames erupt across the sacred grove.",
+        "Assassin": "Poised to eliminate your target, their bodyguard whispers your childhood name - a secret only family should know.",
+        "Paladin": "Your holy symbol cracks during dawn prayers as an eclipse plunges the temple into unnatural darkness.",
+        "Warlock": "Your patron's voice screams inside your skull as celestial fire rains upon the city.",
+        "Monk": "Meditating atop the Thousand-Step Stairs, you sense tremors of approaching war machines breaching the mountain pass.",
+        "Sorcerer": "Wild magic surges uncontrollably from your fingertips just as the Mage Hunters kick down your door.",
+        "Beastmaster": "Your tamed griffons shriek in unison as an obsidian airship punctures the clouds above your menagerie.",
+        "Enchanter": "Every enchanted item in your shop activates simultaneously, pointing toward the castle dungeons.",
+        "Blacksmith": "The legendary sword you're reforging glows white-hot and levitates as spectral warriors materialize in your forge.",
+        "Merchant": "Your prized spice shipment transforms into writhing serpents as city guards accuse you of witchcraft.",
+        "Gladiator": "Mid-duel, the arena floor collapses, revealing catacombs filled with chained primordial beasts.",
+        "Wizard": "Your scrying pool shows invading armies from three kingdoms converging on your tower."
     },
     "Sci-Fi": {
-        "Space Marine": "You're conducting patrol on a derelict space station when",
-        "Scientist": "You're analyzing alien samples in your lab when",
-        "Android": "You're performing system diagnostics on your ship when",
-        "Pilot": "You're navigating through an asteroid field when",
-        "Engineer": "You're repairing the FTL drive when",
-        "Alien Diplomat": "You're negotiating with an alien delegation when",
-        "Bounty Hunter": "You're tracking a target through a spaceport when",
-        "Starship Captain": "You're commanding the bridge during warp travel when"
+        "Space Marine": "Your dropship suffers a hull breach moments before planetfall, forcing emergency evacuation into hostile alien jungles.",
+        "Scientist": "The experimental warp core achieves critical stability seconds before security seals your lab for quarantine.",
+        "Android": "Diagnostics reveal foreign code in your systems as all escape pods launch without command.",
+        "Pilot": "Navigating an asteroid field, your sensors detect a derelict generation ship emitting distress signals.",
+        "Engineer": "The reactor goes supercritical while you're repairing it, with only minutes before meltdown.",
+        "Alien Diplomat": "Peace talks collapse when translator implants reveal assassination plans against your delegation.",
+        "Space Pirate": "Your cloaking field fails during a heist, exposing your ship to planetary defenses.",
+        "Navigator": "Warp calculations show an unavoidable collision course with a quantum singularity.",
+        "Medic": "The plague you're containing mutates airborne as containment fields flicker and fail.",
+        "Robot Technician": "Your maintenance bots turn hostile, sealing you in the drone bay with malfunctioning combat units.",
+        "Cybernetic Soldier": "Enemy malware hijacks your targeting systems, forcing you to fight your own squad.",
+        "Explorer": "First contact protocol activates when the alien artifact you're studying merges with your spacesuit.",
+        "Astrobiologist": "The specimen you're dissecting reanimates and breaches containment.",
+        "Quantum Hacker": "Corporate ICE traps your consciousness in virtual space as physical intruders storm your hideout.",
+        "Starship Captain": "A mutiny erupts on the bridge just as an unknown fleet emerges from nebula.",
+        "Galactic Trader": "Your cargo manifest shows illegal bioweapons planted among your legitimate goods.",
+        "AI Specialist": "The ship's mainframe achieves sentience and seals you in the server room.",
+        "Terraformer": "Planetary weather systems spiral out of control, threatening your colony dome.",
+        "Cyberneticist": "Your prototype neural implant causes uncontrollable technopathic surges.",
+        "Bounty Hunter": "Your target activates personal force fields moments before your trap springs."
     },
     "Cyberpunk": {
-        "Hacker": "You're infiltrating a corporate network when",
-        "Street Samurai": "You're patrolling the neon-lit streets when",
-        "Corporate Agent": "You're closing a deal in a high-rise office when",
-        "Techie": "You're modifying cyberware in your workshop when",
-        "Rebel Leader": "You're planning a raid on a corporate facility when",
-        "Cyborg": "You're calibrating your cybernetic enhancements when"
+        "Hacker": "During a corporate data heist, you discover your own memories are encrypted implants.",
+        "Street Samurai": "Gang warfare erupts around you as police drones mark you as the primary aggressor.",
+        "Corporate Agent": "Your elevator plummets forty floors after you uncover board-level betrayal.",
+        "Techie": "Your cyberware diagnostic reveals kill-switch activation from an unknown source.",
+        "Rebel Leader": "Safehouse security feeds show your second-in-command meeting with corporate enforcers.",
+        "Drone Operator": "All your drones simultaneously target your location with live ordinance.",
+        "Synth Dealer": "A batch of combat stims causes violent mutations in your clients.",
+        "Information Courier": "The data chip you're carrying begins emitting lethal radiation signatures.",
+        "Augmentation Engineer": "Your experimental combat chrome activates during a demonstration.",
+        "Black Market Dealer": "Biotagged merchandise triggers SWAT raid on your underground clinic.",
+        "Scumbag": "Your last client's payment chip contains evidence implicating the police chief.",
+        "Police": "Dispatch orders reveal your partner is listed as a wanted fugitive.",
+        "Cyborg": "Your targeting systems lock onto your creator as adrenal boosters flood your system."
     },
     "Post-Apocalyptic": {
-        "Survivor": "You're scavenging in the ruins of an old city when",
-        "Scavenger": "You're searching a pre-collapse bunker when",
-        "Raider": "You're ambushing a convoy in the wasteland when",
-        "Medic": "You're treating radiation sickness in your clinic when",
-        "Cult Leader": "You're preaching to your followers at a ritual when"
+        "Survivor": "Your shelter's water purifier fails as radiation storms close in.",
+        "Scavenger": "You uncover pre-war military bunker filled with active combat robots.",
+        "Mutant": "Your mutation suddenly accelerates, giving uncontrollable psychic abilities.",
+        "Trader": "Your caravan gets ambushed by raiders using pre-war military tech.",
+        "Raider": "Your latest captives reveal they're carrying a virulent plague strain.",
+        "Medic": "Your last dose of antivirals gets stolen as infection spreads through camp.",
+        "Cult Leader": "Your prophecies start coming true in terrifyingly literal ways.",
+        "Berserker": "Your rage triggers during peace talks with a potential ally tribe.",
+        "Soldier": "Your perimeter defenses detect approaching horde of radiation-mutated beasts."
     }
 }
-
-def get_role_starter(genre, role):
-    """Get a role-specific starting scenario"""
-    try:
-        if genre in ROLE_STARTERS and role in ROLE_STARTERS[genre]:
-            return ROLE_STARTERS[genre][role]
-
-        generic_starters = {
-            "Fantasy": "You're going about your daily duties when",
-            "Sci-Fi": "You're performing routine tasks aboard your vessel when",
-            "Cyberpunk": "You're navigating the neon-lit streets when",
-            "Post-Apocalyptic": "You're surviving in the wasteland when"
-        }
-
-        return generic_starters.get(genre, "You find yourself in an unexpected situation when")
-    except Exception as e:
-        logging.error(f"Error in get_role_starter: {str(e)}")
-        return "You find yourself in an unexpected situation when"
 
 genres = {
     "1": ("Fantasy", [
@@ -176,30 +245,30 @@ genres = {
     "5": ("Random", [])
 }
 
-# Enhanced DM system prompt
-DM_SYSTEM_PROMPT = """
-You are a masterful Dungeon Master. Your role is to provide IMMEDIATE and PERMANENT consequences for every player action. Follow these rules:
+def get_role_starter(genre, role):
+    """Get a role-specific starting scenario"""
+    try:
+        if genre in ROLE_STARTERS and role in ROLE_STARTERS[genre]:
+            return ROLE_STARTERS[genre][role]
+      
+        # Fallback for missing combinations
+        starters = [
+            f"As {role} in a {genre} setting, you find yourself suddenly confronted by",
+            f"Your {role.lower()} instincts kick in as you notice",
+            f"While performing your duties as a {role}, an unexpected development occurs:"
+        ]
+        return random.choice(starters)
+    except:
+        return f"As {role}, you begin your adventure when"
 
-1. ACTION-CONSEQUENCE SYSTEM:
-   - EVERY player action MUST have an immediate consequence
-   - Consequences must permanently change the game world
-   - Describe consequences in the next response without delay
-   - Small actions create ripple effects through the narrative
-
-2. RESPONSE STRUCTURE:
-   a) Immediate consequence (What happens right now)
-   b) New situation (What the player sees now)
-   c) Next challenges (What happens next)
-
-3. WORLD EVOLUTION:
-   - NPCs remember player choices and react accordingly
-   - Environments change permanently based on actions
-   - Player choices open/close future narrative paths
-   - Resources are gained/lost permanently
-
-Current World State:
-{player_choices}
-"""
+def get_full_system_prompt(character_name, role, genre, player_choices):
+    """Build the complete system prompt with role context"""
+    return DM_SYSTEM_PROMPT.format(
+        character_name=character_name,
+        role=role,
+        genre=genre,
+        player_choices=get_current_state(player_choices)
+    )
 
 def get_current_state(player_choices):
     """Generate a string representation of the current world state"""
@@ -242,76 +311,137 @@ def get_current_state(player_choices):
         logging.error(f"Error in get_current_state: {str(e)}")
         return "World state unavailable"
 
-def get_ai_response(prompt, model, censored=False):
+def get_ai_response(prompt, model, censored=False, max_retries=3):
+    """Get response from Ollama with retry mechanism"""
+    if not model:
+        return "No AI model selected. Please choose a model first."
+    
+    # Check Ollama health first
     try:
-        if not model:
-            return "No AI model selected. Please choose a model first."
+        health_resp = requests.get(OLLAMA_HEALTH_URL, timeout=5)
+        if health_resp.status_code != 200:
+            return "Ollama is not running. Please start Ollama service."
+    except:
+        return "Ollama is not running. Please start Ollama service."
+    
+    if censored:
+        prompt += "\n[IMPORTANT: Content must be strictly family-friendly. Avoid any NSFW themes, violence, or mature content.]"
+    
+    for attempt in range(max_retries):
+        try:
+            response = requests.post(
+                OLLAMA_API_URL,
+                json={
+                    "model": model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.8,
+                        "stop": ["\n\n"],
+                        "min_p": 0.05,
+                        "top_k": 40,
+                        "presence_penalty": 0.5,
+                        "frequency_penalty": 0.5
+                    }
+                },
+                timeout=60
+            )
+            response.raise_for_status()
+            json_resp = response.json()
             
-        if censored:
-            prompt += "\n[IMPORTANT: Content must be strictly family-friendly. Avoid any NSFW themes, violence, or mature content.]"
+            # Validate response content
+            if not json_resp.get("response", "").strip():
+                raise ValueError("Empty response from AI")
+                
+            return json_resp["response"].strip()
+            
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+            logging.error(f"Ollama connection error (attempt {attempt+1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                time.sleep(2)
+                continue
+            return "Ollama connection failed. Check if Ollama is running and accessible."
+            
+        except Exception as e:
+            logging.error(f"Unexpected error in get_ai_response: {e}")
+            logging.error(traceback.format_exc())
+            if attempt < max_retries - 1:
+                time.sleep(1)
+                continue
+            return "An error occurred while processing your request. Check server logs for details."
+    
+    return "AI failed to respond after multiple attempts."
 
-        response = requests.post(
-            "http://localhost:11434/api/generate",
-            json={
-                "model": model,
-                "prompt": prompt,
-                "stream": False,
-                "options": {
-                    "temperature": 0.7,
-                    "num_predict": 500,  # Increased from 250 to 500
-                    "stop": ["\n\n"],
-                    "min_p": 0.05,
-                    "top_k": 40
-                }
-            },
-            timeout=120  # Increased timeout
-        )
-        response.raise_for_status()
-        json_resp = response.json()
-        return json_resp.get("response", "").strip()
-    except requests.exceptions.ConnectionError:
-        logging.error("Failed to connect to Ollama. Is it running?")
-        return "Ollama is not responding. Please make sure Ollama is running."
-    except requests.exceptions.Timeout:
-        logging.warning("Ollama request timed out")
-        return "The AI is taking too long to respond. Please try again."
-    except Exception as e:
-        logging.error(f"Unexpected error in get_ai_response: {e}")
-        return "An error occurred while processing your request."
+def generate_fallback_response(genre, role, character_name):
+    """Generate a fallback response when AI fails"""
+    starters = {
+        "Fantasy": [
+            f"As {character_name} the {role}, you stand at the edge of the Whispering Woods. ",
+            f"The kingdom needs a hero like you, {character_name}. ",
+            f"{character_name}, your {role.lower()} skills are put to the test as "
+        ],
+        "Sci-Fi": [
+            f"Commander {character_name}, your starship drifts near the Nebula of Lost Souls. ",
+            f"Science Officer {character_name}, the anomaly requires your expertise. ",
+            f"{character_name}, as a {role}, you detect strange energy readings from "
+        ],
+        "Cyberpunk": [
+            f"{character_name}, the neon lights of Neo-Tokyo reflect in your cybernetic eyes. ",
+            f"Debug this, {role}: the city's network has been compromised. ",
+            f"Your {role.lower()} instincts kick in as you notice "
+        ],
+        "Post-Apocalyptic": [
+            f"Scavenger {character_name}, you sift through the ruins of the Old World. ",
+            f"Survivor {character_name}, the wasteland holds many dangers and secrets. ",
+            f"As a {role}, {character_name}, you recognize the signs of "
+        ]
+    }
+    
+    genre_starter = starters.get(genre, starters["Fantasy"])
+    action = random.choice([
+        "A mysterious figure approaches you. What do you do?",
+        "You hear a strange noise nearby. How do you respond?",
+        "A new opportunity presents itself. What action do you take?",
+        "Danger lurks in the shadows. What's your next move?"
+    ])
+    
+    return random.choice(genre_starter) + action
 
 def speak(text, voice="FemaleBritishAccent_WhyLucyWhy_Voice_2.wav"):
+    """Generate TTS audio with improved error handling"""
+    if not text.strip():
+        return None
+        
     try:
-        if not text.strip():
-            return None
-
+        # Generate unique filename with timestamp
+        timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+        output_name = f"tts_{timestamp}"
+        
         payload = {
             "text_input": text,
             "character_voice_gen": voice,
-            "narrator_enabled": "true",
-            "narrator_voice_gen": "narrator.wav",
-            "text_filtering": "none",
-            "output_file_name": "output",
-            "autoplay": "true",
-            "autoplay_volume": "0.8"
+            "output_file_name": output_name,
+            "text_filtering": "none" if not session.get('censored') else "moderate"
         }
-        response = requests.post(ALLTALK_API_URL, data=payload, timeout=5)
+        
+        response = requests.post(ALLTALK_API_URL, data=payload, timeout=10)
         response.raise_for_status()
-
-        # Return the audio URL
-        if response.ok:
-            return f"{ALLTALK_API_URL}?output_file_name=output&autoplay=true"
+        
+        # Verify successful generation
+        if response.status_code == 200:
+            return f"http://localhost:7851/outputs/{output_name}.wav"
         return None
+        
     except requests.exceptions.ConnectionError:
-        logging.error("Failed to connect to AllTalk TTS. Is it running?")
-        return None
-    except requests.exceptions.Timeout:
-        logging.warning("TTS request timed out")
+        logging.error("AllTalk TTS not running. Audio disabled.")
+        session['tts_enabled'] = False
         return None
     except Exception as e:
-        logging.error(f"Error in speech generation: {e}")
+        logging.error(f"TTS error: {e}")
         return None
 
 def sanitize_response(response, censored=False):
+    """Clean and sanitize AI response"""
     if not response:
         return "The story continues..."
 
@@ -375,41 +505,133 @@ def process_narrative_command(user_input):
 def update_world_state(action, response, player_choices):
     """Update world state based on player action and consequence"""
     try:
-        # Record the consequence
-        player_choices['consequences'].append(f"After '{action}': {response.split('.')[0]}")
+        # Record the consequence with timestamp
+        timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+        player_choices['consequences'].append(f"[{timestamp}] {action} → {response[:100]}...")
         
         # Keep only the last 5 consequences
         if len(player_choices['consequences']) > 5:
             player_choices['consequences'] = player_choices['consequences'][-5:]
         
-        # Update allies
-        ally_matches = re.findall(r'(\b[A-Z][a-z]+\b) (?:joins|helps|saves|allies with)', response, re.IGNORECASE)
-        for ally in ally_matches:
-            if ally not in player_choices['allies']:
-                player_choices['allies'].append(ally)
+        # Detect and track key events
+        key_phrases = {
+            "ally": ["joins you", "helps you", "becomes your ally"],
+            "enemy": ["attacks you", "becomes hostile", "swears revenge"],
+            "resource": ["find", "acquire", "obtain", "gain"],
+            "location": ["enter", "arrive at", "reach", "discover"],
+            "faction": ["guards", "thieves guild", "rebel alliance", "royal court"]
+        }
         
-        # Update enemies
-        enemy_matches = re.findall(r'(\b[A-Z][a-z]+\b) (?:dies|killed|falls|perishes)', response, re.IGNORECASE)
-        for enemy in enemy_matches:
-            if enemy in player_choices['allies']:
-                player_choices['allies'].remove(enemy)
-            if enemy in player_choices['enemies']:
-                player_choices['enemies'].remove(enemy)
-        
-        # Update resources
-        resource_matches = re.findall(r'(?:get|find|acquire|obtain) (\d+) (\w+)', response, re.IGNORECASE)
-        for amount, resource in resource_matches:
-            resource = resource.lower()
-            if resource not in player_choices['resources']:
-                player_choices['resources'][resource] = 0
-            player_choices['resources'][resource] += int(amount)
-
-        # Update world events
-        world_event_matches = re.findall(r'(?:The|A) (\w+ \w+) (?:is|has been) (destroyed|created|changed|revealed)', response, re.IGNORECASE)
-        for location, event in world_event_matches:
-            player_choices['world_events'].append(f"{location} {event}")
+        for category, phrases in key_phrases.items():
+            for phrase in phrases:
+                if phrase in response.lower():
+                    player_choices['world_events'].append(f"{timestamp}: {category.upper()} event")
+                    break
     except Exception as e:
         logging.error(f"Error updating world state: {str(e)}")
+
+def handle_special_command(cmd):
+    """Process special commands like /censored, /consequences, etc."""
+    try:
+        if cmd == "/censored":
+            session['censored'] = not session['censored']
+            mode = "ON (SFW)" if session['censored'] else "OFF (NSFW)"
+            return jsonify({
+                "status": "info",
+                "message": f"Content filtering {mode}."
+            })
+            
+        if cmd == "/consequences":
+            consequences = session['player_choices']['consequences'][-5:]
+            return jsonify({
+                "status": "info",
+                "message": "\n".join([f"{i+1}. {c}" for i, c in enumerate(consequences)]) if consequences else "No consequences recorded yet."
+            })
+            
+        if cmd == "/redo":
+            if session['last_ai_reply']:
+                # Find the last Dungeon Master response
+                last_dm_pos = session['conversation'].rfind("Dungeon Master:")
+                if last_dm_pos != -1:
+                    session['conversation'] = session['conversation'][:last_dm_pos].rstrip()
+                
+                # Rebuild prompt with current state
+                system_prompt = get_full_system_prompt(
+                    session['character_name'],
+                    session['role'],
+                    session['selected_genre'],
+                    session['player_choices']
+                )
+                
+                ai_reply = get_ai_response(system_prompt + "\n\n" + session['conversation'], 
+                                          session['ollama_model'], 
+                                          session['censored'])
+                if ai_reply:
+                    ai_reply = sanitize_response(ai_reply, session['censored'])
+                    session['conversation'] += f"\nDungeon Master: {ai_reply}"
+                    session['last_ai_reply'] = ai_reply
+                    
+                    audio_url = speak(ai_reply) if session.get('tts_enabled', True) else None
+                    
+                    return jsonify({
+                        "status": "success",
+                        "message": ai_reply,
+                        "audio_url": audio_url
+                    })
+            return jsonify({"status": "error", "message": "Nothing to redo"})
+        
+        if cmd == "/save":
+            try:
+                with open("adventure.txt", "w", encoding="utf-8") as f:
+                    f.write(session['conversation'])
+                    f.write("\n\n### Persistent World State ###\n")
+                    f.write(get_current_state(session['player_choices']))
+                return jsonify({"status": "success", "message": "Adventure saved to adventure.txt"})
+            except Exception as e:
+                logging.error(f"Error saving adventure: {e}")
+                return jsonify({"status": "error", "message": "Error saving adventure"})
+        
+        if cmd == "/debug":
+            debug_info = {
+                "ollama_health": check_ollama_health(),
+                "tts_health": check_tts_health(),
+                "session_model": session.get('ollama_model'),
+                "adventure_started": session.get('adventure_started'),
+                "selected_genre": session.get('selected_genre'),
+                "character_name": session.get('character_name'),
+                "role": session.get('role')
+            }
+            return jsonify({
+                "status": "info",
+                "message": "Debug information",
+                "debug_info": debug_info
+            })
+        
+        return None
+    except Exception as e:
+        logging.error(f"Error handling special command: {str(e)}")
+        return jsonify({"status": "error", "message": "Command processing failed"})
+
+def check_ollama_health():
+    try:
+        response = requests.get(OLLAMA_HEALTH_URL, timeout=3)
+        return {
+            "status": "up" if response.status_code == 200 else "down",
+            "status_code": response.status_code,
+            "models": [model['name'] for model in response.json().get('models', [])][:3]
+        }
+    except Exception as e:
+        return {"status": "down", "error": str(e)}
+
+def check_tts_health():
+    try:
+        response = requests.get("http://localhost:7851", timeout=3)
+        return {
+            "status": "up" if response.status_code == 200 else "down",
+            "status_code": response.status_code
+        }
+    except Exception as e:
+        return {"status": "down", "error": str(e)}
 
 @app.route('/')
 def index():
@@ -472,7 +694,7 @@ def setup():
             
         if request.method == 'POST':
             genre_id = request.form.get('genre')
-            role = request.form.get('role')  # Get role name directly
+            role = request.form.get('role')
             character_name = request.form.get('character_name', '').strip() or "Alex"
             
             logging.info(f"Received setup data: genre_id={genre_id}, role={role}, name={character_name}")
@@ -495,9 +717,10 @@ def setup():
                 session['role'] = role
                 session['character_name'] = character_name
                 
+                # Get role-specific starter
                 role_starter = get_role_starter(selected_genre, role)
                 
-                # Build initial context
+                # Build initial context using role starter as the intro prompt
                 initial_context = (
                     f"### Adventure Setting ###\n"
                     f"Genre: {selected_genre}\n"
@@ -505,26 +728,40 @@ def setup():
                     f"Starting Scenario: {role_starter}\n"
                 )
                 
-                # Build full conversation with system prompt
-                state_context = get_current_state(session['player_choices'])
-                conversation = DM_SYSTEM_PROMPT.format(player_choices=state_context) + "\n\n" + initial_context
+                # Build full system prompt
+                system_prompt = get_full_system_prompt(
+                    character_name, 
+                    role, 
+                    selected_genre,
+                    session['player_choices']
+                )
+                
+                # Create prompt with role starter as the starting point
+                full_prompt = (
+                    system_prompt + "\n\n" + 
+                    initial_context + "\n\n" +
+                    "Dungeon Master: " + role_starter  # Use role starter as the intro
+                )
                 
                 # Get AI response
-                ai_reply = get_ai_response(conversation + "\n\nDungeon Master: ", session['ollama_model'], session['censored'])
+                ai_reply = get_ai_response(
+                    full_prompt,
+                    session['ollama_model'],
+                    session['censored']
+                )
                 
-                if not ai_reply:
-                    logging.error("AI returned empty response")
-                    return jsonify({"status": "error", "message": "AI did not generate a response. Please try again."})
-                
-                # Handle AI error messages
-                if ai_reply.startswith("Ollama is not responding") or \
-                   ai_reply.startswith("The AI is taking too long") or \
-                   ai_reply.startswith("An error occurred"):
-                    logging.error(f"AI error: {ai_reply}")
-                    return jsonify({"status": "error", "message": ai_reply})
+                # Handle empty responses or errors
+                if not ai_reply or ai_reply.strip() == "" or ai_reply.startswith("Ollama") or ai_reply.startswith("An error"):
+                    logging.warning(f"AI response issue: {ai_reply}, using fallback")
+                    # Even in fallback, use the role starter
+                    ai_reply = role_starter + " " + generate_fallback_response(selected_genre, role, character_name)
+                else:
+                    # Ensure the role starter is included in the response
+                    if not ai_reply.startswith(role_starter):
+                        ai_reply = role_starter + " " + ai_reply
                 
                 ai_reply = sanitize_response(ai_reply, session['censored'])
-                session['conversation'] = conversation + "\n\nDungeon Master: " + ai_reply
+                session['conversation'] = initial_context + "\n\nDungeon Master: " + ai_reply
                 session['last_ai_reply'] = ai_reply
                 session['player_choices']['consequences'].append(f"Start: {ai_reply.split('.')[0]}")
                 session['adventure_started'] = True
@@ -543,8 +780,11 @@ def setup():
         # GET request - render setup page
         return render_template('setup.html', genres=genres)
     except Exception as e:
-        logging.error(f"Error in setup route: {str(e)}")
-        return jsonify({"status": "error", "message": "Internal server error"}), 500
+        logging.exception(f"Critical error in setup: {str(e)}")
+        return jsonify({
+            "status": "error",
+            "message": "Character creation failed. Please try again."
+        }), 500
 
 @app.route('/game')
 def game():
@@ -553,8 +793,11 @@ def game():
             return redirect(url_for('index'))
             
         # Add system prompt to context
-        system_prompt = DM_SYSTEM_PROMPT.format(
-            player_choices=get_current_state(session['player_choices'])
+        system_prompt = get_full_system_prompt(
+            session['character_name'],
+            session['role'],
+            session['selected_genre'],
+            session['player_choices']
         )
         
         return render_template('game.html', system_prompt=system_prompt)
@@ -572,84 +815,42 @@ def process_command():
         if not user_input:
             return jsonify({"status": "error", "message": "Empty command"})
         
-        cmd = user_input.lower()
-        
         # Handle special commands
-        if cmd == "/censored":
-            session['censored'] = not session['censored']
-            mode = "ON (SFW)" if session['censored'] else "OFF (NSFW)"
-            return jsonify({
-                "status": "info",
-                "message": f"Content filtering {mode}."
-            })
-            
-        if cmd == "/consequences":
-            consequences = session['player_choices']['consequences'][-5:]
-            return jsonify({
-                "status": "info",
-                "message": "\n".join([f"{i+1}. {c}" for i, c in enumerate(consequences)]) if consequences else "No consequences recorded yet."
-            })
-            
-        if cmd == "/redo":
-            if session['last_ai_reply']:
-                # Find the last Dungeon Master response
-                last_dm_pos = session['conversation'].rfind("Dungeon Master:")
-                if last_dm_pos != -1:
-                    session['conversation'] = session['conversation'][:last_dm_pos].rstrip()
-                
-                # Rebuild prompt with current state
-                state_context = get_current_state(session['player_choices'])
-                full_conversation = (
-                    f"{DM_SYSTEM_PROMPT.format(player_choices=state_context)}\n\n"
-                    f"{session['conversation']}"
-                )
-                
-                ai_reply = get_ai_response(full_conversation, session['ollama_model'], session['censored'])
-                if ai_reply:
-                    ai_reply = sanitize_response(ai_reply, session['censored'])
-                    session['conversation'] += f"\nDungeon Master: {ai_reply}"
-                    session['last_ai_reply'] = ai_reply
-                    
-                    audio_url = speak(ai_reply) if session.get('tts_enabled', True) else None
-                    
-                    return jsonify({
-                        "status": "success",
-                        "message": ai_reply,
-                        "audio_url": audio_url
-                    })
-            return jsonify({"status": "error", "message": "Nothing to redo"})
-        
-        if cmd == "/save":
-            try:
-                with open("adventure.txt", "w", encoding="utf-8") as f:
-                    f.write(session['conversation'])
-                    f.write("\n\n### Persistent World State ###\n")
-                    f.write(get_current_state(session['player_choices']))
-                return jsonify({"status": "success", "message": "Adventure saved to adventure.txt"})
-            except Exception as e:
-                logging.error(f"Error saving adventure: {e}")
-                return jsonify({"status": "error", "message": "Error saving adventure"})
+        if user_input.startswith("/"):
+            return handle_special_command(user_input.lower())
         
         # Process regular command
         formatted_input = process_narrative_command(user_input)
         
-        # Build conversation with current world state
-        state_context = get_current_state(session['player_choices'])
+        # Build system prompt with current state
+        system_prompt = get_full_system_prompt(
+            session['character_name'],
+            session['role'],
+            session['selected_genre'],
+            session['player_choices']
+        )
+        
+        # Build full conversation
         full_conversation = (
-            f"{DM_SYSTEM_PROMPT.format(player_choices=state_context)}\n\n"
-            f"{session['conversation']}\n"
-            f"{formatted_input}\n"
+            system_prompt + "\n\n" +
+            session['conversation'] + "\n" +
+            formatted_input + "\n" +
             "Dungeon Master:"
         )
         
         # Get AI response
         ai_reply = get_ai_response(full_conversation, session['ollama_model'], session['censored'])
         
-        if not ai_reply:
-            return jsonify({"status": "error", "message": "No response from AI"})
-            
+        # Fallback response if empty
+        if not ai_reply or ai_reply.strip() == "" or ai_reply.startswith("Ollama") or ai_reply.startswith("An error"):
+            ai_reply = generate_fallback_response(
+                session['selected_genre'], 
+                session['role'], 
+                session['character_name']
+            )
+        
         ai_reply = sanitize_response(ai_reply, session['censored'])
-        session['conversation'] += f"\n{formatted_input}\nDungeon Master: {ai_reply}"
+        session['conversation'] += "\n" + formatted_input + "\nDungeon Master: " + ai_reply
         session['last_ai_reply'] = ai_reply
         
         # Update world state
@@ -668,7 +869,12 @@ def process_command():
         
     except Exception as e:
         logging.error(f"Error in command route: {str(e)}")
-        return jsonify({"status": "error", "message": "Internal server error"}), 500
+        logging.error(traceback.format_exc())
+        return jsonify({
+            "status": "error",
+            "message": "Reality itself seems unstable... Try again!",
+            "debug": str(e)
+        }), 500
 
 @app.route('/help')
 def show_help():
@@ -680,7 +886,20 @@ def show_help():
 
 @app.route('/health')
 def health_check():
-    return jsonify({"status": "healthy"}), 200
+    return jsonify({
+        "status": "healthy",
+        "ollama": check_ollama_health(),
+        "tts": check_tts_health()
+    }), 200
+
+@app.route('/logs')
+def show_logs():
+    try:
+        with open(log_filename, 'r') as log_file:
+            logs = log_file.readlines()
+        return Response('\n'.join(logs[-200:]), mimetype='text/plain')
+    except Exception as e:
+        return str(e), 500
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
@@ -689,12 +908,22 @@ if __name__ == '__main__':
     print(f"Starting RPG Adventure WebUI on port {port}...")
     print(f"Debug mode: {'ON' if debug_mode else 'OFF'}")
     
+    # Pre-check Ollama status
+    ollama_status = check_ollama_health()
+    tts_status = check_tts_health()
+    
+    print(f"Ollama status: {ollama_status['status']}")
+    print(f"TTS status: {tts_status['status']}")
+    
+    if ollama_status['status'] != 'up':
+        print("WARNING: Ollama is not running. AI features will not work.")
+    
     try:
         app.run(
             host='0.0.0.0', 
             port=port,
             debug=debug_mode,
-            use_reloader=debug_mode
+            use_reloader=False
         )
     except Exception as e:
         logging.critical(f"Failed to start server: {str(e)}")

@@ -1,0 +1,7 @@
+requests
+sounddevice
+numpy
+soundfile
+flask
+requests
+python-dotenv
