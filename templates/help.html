@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Help - RPG Adventure</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="help-page">
+    {% include 'model_bar.html' %}
+    
+    <div class="container">
+        <h1>Help & Instructions</h1>
+        <div class="help-content">
+            <h2>How to Play</h2>
+            <p>Welcome to the RPG Adventure! Here's how to get started:</p>
+            <ol>
+                <li>Select an AI model to power your adventure</li>
+                <li>Create your character by choosing a genre and role</li>
+                <li>Enter the game and start making choices</li>
+            </ol>
+
+            <h2>Game Mechanics</h2>
+            <p>Every choice you make has consequences that permanently alter the game world.</p>
+
+            <h2>Controls</h2>
+            <ul>
+                <li><strong>/censored</strong> - Toggle content filtering</li>
+                <li><strong>/redo</strong> - Regenerate the last response</li>
+                <li><strong>/save</strong> - Save your adventure</li>
+                <li><strong>/consequences</strong> - View recent consequences</li>
+            </ul>
+
+            <a href="/" class="btn">Back to Start</a>
+        </div>
+    </div>
+</body>
+</html>

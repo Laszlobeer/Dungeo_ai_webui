@@ -1,0 +1,38 @@
+<div class="model-bar">
+    <div class="model-selector">
+        <label>AI Model:</label>
+        <div class="model-dropdown">
+            <button class="model-btn" id="modelBtn">
+                <i>🧠</i> {{ session.ollama_model or 'Select Model' }}
+            </button>
+            <div class="model-dropdown-content" id="modelDropdown">
+                {% for model in session.installed_models %}
+                <div class="model-option" data-model="{{ model }}">{{ model }}</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="model-stats">
+        <div class="stat">
+            <div class="stat-value" id="creativity">0.7</div>
+            <div class="stat-label">Creativity</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" id="coherence">0.9</div>
+            <div class="stat-label">Coherence</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" id="randomness">0.6</div>
+            <div class="stat-label">Randomness</div>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <button id="help-btn">Help</button>
+        <button id="censored-btn">Toggle SFW Mode</button>
+        <button id="redo-btn">Redo Last</button>
+        <button id="save-btn">Save</button>
+        <button id="consequences-btn">Consequences</button>
+    </div>
+</div>

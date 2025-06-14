@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPG Adventure - Start</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="start-page">
+    <div class="container">
+        <h1>RPG Adventure</h1>
+        <div class="intro">
+            <p>Welcome to an immersive RPG experience where your choices have permanent consequences.</p>
+            <p>Every action you take will shape the world around you in meaningful ways.</p>
+        </div>
+        <a href="{{ url_for('model_selection') }}" class="btn">Begin Your Adventure</a>
+    </div>
+</body>
+</html>

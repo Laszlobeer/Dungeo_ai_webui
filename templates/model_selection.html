@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select AI Model - RPG Adventure</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .model-selection-container {
+            max-width: 800px;
+            margin: 50px auto;
+            background: rgba(44, 62, 80, 0.8);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+        
+        .model-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .model-card:hover {
+            background: rgba(52, 152, 219, 0.2);
+            transform: translateY(-3px);
+        }
+        
+        .model-card h3 {
+            color: #3498db;
+            margin-bottom: 10px;
+        }
+        
+        .model-info {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+        }
+        
+        .model-stat {
+            background: rgba(44, 62, 80, 0.6);
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body class="model-selection-page">
+    <div class="container">
+        <h1 style="text-align: center; margin-bottom: 30px;">Select Your AI Model</h1>
+        
+        {% if error %}
+        <div class="error-message" style="background: rgba(231, 76, 60, 0.3); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+            {{ error }}
+        </div>
+        {% endif %}
+        
+        <div class="model-selection-container">
+            <form method="POST">
+                <div class="model-list">
+                    {% for model in models %}
+                    <label class="model-card">
+                        <input type="radio" name="model" value="{{ model }}" required style="margin-right: 10px;">
+                        <div>
+                            <h3>{{ model }}</h3>
+                            <div class="model-info">
+                                <div class="model-stat">Creativity: 0.7</div>
+                                <div class="model-stat">Coherence: 0.8</div>
+                                <div class="model-stat">Speed: Fast</div>
+                            </div>
+                        </div>
+                    </label>
+                    {% endfor %}
+                </div>
+                
+                <button type="submit" class="btn" style="width: 100%; margin-top: 20px; padding: 15px;">
+                    Continue to Character Setup
+                </button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Character Setup</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="setup-page">
+    {% include 'model_bar.html' %}
+    
+    <div class="container">
+        <h1>Create Your Character</h1>
+        <form id="character-form">
+            <div class="form-group">
+                <label for="genre">Choose a Genre:</label>
+                <select id="genre" name="genre">
+                    {% for key, (name, roles) in genres.items() %}
+                        <option value="{{ key }}">{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="role">Select Your Role:</label>
+                <select id="role" name="role">
+                    <!-- This will be populated dynamically by JavaScript -->
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="character_name">Character Name:</label>
+                <input type="text" id="character_name" name="character_name" placeholder="Enter your character's name" value="Alex">
+            </div>
+            
+            <button type="submit" class="btn">Start Adventure</button>
+        </form>
+        
+        <div id="loading" class="hidden">
+            <div class="spinner"></div>
+            <p>Generating your adventure...</p>
+        </div>
+        
+        <div id="start-message" class="hidden"></div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const genreSelect = document.getElementById('genre');
+            const roleSelect = document.getElementById('role');
+            const form = document.getElementById('character-form');
+            const loading = document.getElementById('loading');
+            const startMessage = document.getElementById('start-message');
+            
+            // Initialize role dropdown with first genre's roles
+            function initializeRoleDropdown() {
+                const defaultGenre = genreSelect.value;
+                fetch(`/get-roles?genre=${defaultGenre}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        roleSelect.innerHTML = '';
+                        data.roles.forEach(role => {
+                            const option = document.createElement('option');
+                            option.value = role;
+                            option.textContent = role;
+                            roleSelect.appendChild(option);
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Error initializing roles:', error);
+                        startMessage.textContent = 'Error loading roles. Please try again.';
+                        startMessage.classList.remove('hidden');
+                    });
+            }
+            
+            // Initialize on page load
+            initializeRoleDropdown();
+            
+            // Update roles when genre changes
+            genreSelect.addEventListener('change', function() {
+                const genreId = this.value;
+                fetch(`/get-roles?genre=${genreId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        roleSelect.innerHTML = '';
+                        data.roles.forEach(role => {
+                            const option = document.createElement('option');
+                            option.value = role;
+                            option.textContent = role;
+                            roleSelect.appendChild(option);
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Error fetching roles:', error);
+                        startMessage.textContent = 'Error loading roles. Please try again.';
+                        startMessage.classList.remove('hidden');
+                    });
+            });
+            
+            // Form submission
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const formData = new FormData(this);
+                loading.classList.remove('hidden');
+                startMessage.classList.add('hidden');
+                
+                // Validate inputs
+                const characterName = formData.get('character_name').trim();
+                if (!characterName) {
+                    loading.classList.add('hidden');
+                    startMessage.textContent = 'Please enter a character name';
+                    startMessage.classList.remove('hidden');
+                    return;
+                }
+                
+                fetch('/setup', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(err => { throw err; });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    loading.classList.add('hidden');
+                    if (data.status === 'success') {
+                        window.location.href = '/game';
+                    } else {
+                        startMessage.textContent = data.message || 'Error starting adventure';
+                        startMessage.classList.remove('hidden');
+                    }
+                })
+                .catch(error => {
+                    loading.classList.add('hidden');
+                    let errorMsg = 'Error starting adventure';
+                    try {
+                        if (error.message) {
+                            const errorData = JSON.parse(error.message);
+                            errorMsg = errorData.message || errorMsg;
+                        }
+                    } catch (e) {
+                        errorMsg = error.message || errorMsg;
+                    }
+                    startMessage.textContent = errorMsg;
+                    startMessage.classList.remove('hidden');
+                    console.error('Error:', error);
+                });
+            });
+        });
+    </script>
+</body>
+</html>
