@@ -1,0 +1,527 @@
+:root {
+    --primary: #2c3e50;
+    --secondary: #3498db;
+    --accent: #e74c3c;
+    --light: #ecf0f1;
+    --dark: #2c3e50;
+    --success: #2ecc71;
+    --warning: #f39c12;
+    --danger: #e74c3c;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+    background-color: var(--dark);
+    color: var(--light);
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.btn {
+    display: inline-block;
+    padding: 10px 20px;
+    background-color: var(--secondary);
+    color: white;
+    text-decoration: none;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background-color 0.3s;
+}
+
+.btn:hover {
+    background-color: #2980b9;
+}
+
+.hidden {
+    display: none;
+}
+
+/* Model Bar */
+.model-bar {
+    background: rgba(30, 40, 50, 0.9);
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(52, 152, 219, 0.3);
+}
+
+.model-selector {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.model-selector label {
+    font-weight: bold;
+    color: #3498db;
+    font-size: 1.1rem;
+}
+
+.model-dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.model-btn {
+    background: rgba(52, 152, 219, 0.2);
+    color: white;
+    border: 1px solid rgba(52, 152, 219, 0.5);
+    padding: 10px 20px;
+    border-radius: 30px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.model-btn:hover {
+    background: rgba(52, 152, 219, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.model-dropdown-content {
+    display: none;
+    position: absolute;
+    background: rgba(30, 40, 50, 0.95);
+    min-width: 250px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+    border-radius: 10px;
+    z-index: 1;
+    overflow: hidden;
+    border: 1px solid rgba(52, 152, 219, 0.3);
+    backdrop-filter: blur(10px);
+    top: 100%;
+    left: 0;
+    margin-top: 10px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.model-dropdown:hover .model-dropdown-content {
+    display: block;
+}
+
+.model-option {
+    padding: 12px 20px;
+    text-decoration: none;
+    display: block;
+    color: var(--light);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.model-option:hover {
+    background: rgba(52, 152, 219, 0.2);
+    padding-left: 25px;
+}
+
+.model-stats {
+    display: flex;
+    gap: 15px;
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: rgba(44, 62, 80, 0.5);
+    padding: 10px;
+    border-radius: 8px;
+    min-width: 80px;
+}
+
+.stat-value {
+    font-size: 1.4rem;
+    font-weight: bold;
+    color: var(--secondary);
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    color: #95a5a6;
+    margin-top: 5px;
+}
+
+/* Start Page */
+.start-page {
+    background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('https://source.unsplash.com/random/1920x1080/?fantasy');
+    background-size: cover;
+    background-position: center;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.start-page .container {
+    text-align: center;
+    background: rgba(44, 62, 80, 0.8);
+    padding: 40px;
+    border-radius: 10px;
+    max-width: 800px;
+}
+
+.start-page h1 {
+    font-size: 3rem;
+    margin-bottom: 20px;
+    color: var(--light);
+}
+
+.start-page .intro {
+    margin-bottom: 30px;
+    font-size: 1.2rem;
+}
+
+/* Setup Page */
+.setup-page {
+    background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('https://source.unsplash.com/random/1920x1080/?character');
+    background-size: cover;
+    background-position: center;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.setup-page .container {
+    background: rgba(44, 62, 80, 0.9);
+    padding: 30px;
+    border-radius: 10px;
+    max-width: 600px;
+    width: 100%;
+}
+
+.setup-page h1 {
+    text-align: center;
+    margin-bottom: 30px;
+    color: var(--light);
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+}
+
+.form-group select, .form-group input {
+    width: 100%;
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    background: rgba(255, 255, 255, 0.9);
+    font-size: 1rem;
+}
+
+#loading {
+    text-align: center;
+    margin-top: 20px;
+}
+
+.spinner {
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top: 4px solid var(--secondary);
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 15px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Game Page */
+.game-page {
+    background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('https://source.unsplash.com/random/1920x1080/?adventure');
+    background-size: cover;
+    background-position: center;
+    min-height: 100vh;
+}
+
+.game-page header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.game-page header h1 {
+    font-size: 1.8rem;
+}
+
+.controls {
+    display: flex;
+    gap: 10px;
+}
+
+.game-container {
+    display: flex;
+    gap: 20px;
+    height: calc(100vh - 150px);
+}
+
+.world-state {
+    flex: 1;
+    background: rgba(25, 35, 45, 0.8);
+    padding: 20px;
+    border-radius: 10px;
+    overflow-y: auto;
+    max-width: 300px;
+}
+
+.world-state h2 {
+    margin-bottom: 15px;
+    color: var(--secondary);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    padding-bottom: 10px;
+}
+
+.adventure-log {
+    flex: 3;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+#conversation {
+    flex: 1;
+    background: rgba(25, 35, 45, 0.8);
+    padding: 20px;
+    border-radius: 10px;
+    overflow-y: auto;
+}
+
+.message {
+    margin-bottom: 15px;
+    padding: 10px;
+    border-radius: 5px;
+}
+
+.message.dm {
+    background: rgba(52, 152, 219, 0.2);
+    border-left: 4px solid var(--secondary);
+}
+
+.message.player {
+    background: rgba(46, 204, 113, 0.2);
+    border-left: 4px solid var(--success);
+}
+
+.message .speaker {
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: var(--secondary);
+}
+
+.message.player .speaker {
+    color: var(--success);
+}
+
+.input-area {
+    display: flex;
+    gap: 10px;
+}
+
+.input-area input {
+    flex: 1;
+    padding: 12px;
+    border-radius: 5px;
+    border: none;
+    background: rgba(255, 255, 255, 0.9);
+    font-size: 1rem;
+}
+
+#consequence-display {
+    background: rgba(231, 76, 60, 0.2);
+    padding: 15px;
+    border-radius: 5px;
+    border-left: 4px solid var(--danger);
+}
+
+#consequence-display h3 {
+    margin-bottom: 10px;
+    color: var(--danger);
+}
+
+#tts-player {
+    width: 100%;
+    margin-top: 20px;
+}
+
+/* System Prompt */
+.system-prompt {
+    background: rgba(30, 40, 50, 0.8);
+    padding: 15px;
+    border-radius: 8px;
+    margin-top: 20px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.system-prompt h3 {
+    color: var(--secondary);
+    margin-bottom: 10px;
+}
+
+.system-prompt-content {
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+/* Help Page */
+.help-page {
+    background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('https://source.unsplash.com/random/1920x1080/?help');
+    background-size: cover;
+    background-position: center;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.help-page .container {
+    background: rgba(44, 62, 80, 0.9);
+    padding: 30px;
+    border-radius: 10px;
+    max-width: 800px;
+}
+
+.help-page h1 {
+    text-align: center;
+    margin-bottom: 30px;
+    color: var(--light);
+}
+
+.help-content {
+    background: rgba(25, 35, 45, 0.6);
+    padding: 25px;
+    border-radius: 10px;
+}
+
+.help-content h2 {
+    margin: 20px 0 15px;
+    color: var(--secondary);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    padding-bottom: 8px;
+}
+
+.help-content ul {
+    margin-left: 20px;
+    margin-bottom: 20px;
+}
+
+.help-content li {
+    margin-bottom: 8px;
+}
+
+.help-page .btn {
+    display: block;
+    width: fit-content;
+    margin: 20px auto 0;
+}
+.model-selection-page {
+    background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('https://source.unsplash.com/random/1920x1080/?ai');
+    background-size: cover;
+    background-position: center;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.model-selection-page .container {
+    background: rgba(44, 62, 80, 0.9);
+    padding: 30px;
+    border-radius: 10px;
+    max-width: 800px;
+    width: 100%;
+}
+
+.model-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.model-option {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: all 0.3s ease;
+}
+
+.model-option:hover {
+    background: rgba(52, 152, 219, 0.2);
+    transform: translateY(-3px);
+}
+
+.model-option input[type="radio"] {
+    margin-right: 10px;
+}
+
+.model-option label {
+    font-size: 1.1rem;
+    cursor: pointer;
+}
+
+.error-message {
+    background: rgba(231, 76, 60, 0.3);
+    border: 1px solid var(--danger);
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+}
+
+/* Responsive design */
+@media (max-width: 900px) {
+    .model-bar {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .model-stats {
+        display: none;
+    }
+    
+    .game-container {
+        flex-direction: column;
+        height: auto;
+    }
+    
+    .world-state {
+        max-width: 100%;
+    }
+}
