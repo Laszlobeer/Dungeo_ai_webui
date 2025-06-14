@@ -95,6 +95,10 @@
                 // Add player message to conversation
                 addMessage('player', command);
                 
+                // Show loading indicator
+                submitBtn.disabled = true;
+                submitBtn.textContent = "Thinking...";
+                
                 // Send command to server
                 fetch('/command', {
                     method: 'POST',
@@ -142,9 +146,13 @@
                         const errorData = JSON.parse(error.message);
                         addMessage('system', errorData.message || 'Error processing command');
                     } catch (e) {
-                        addMessage('system', 'Error processing command');
+                        addMessage('system', 'Reality glitches... try again');
                     }
                     console.error('Error:', error);
+                })
+                .finally(() => {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = "Submit";
                 });
             }
             
