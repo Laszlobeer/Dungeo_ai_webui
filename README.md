@@ -118,3 +118,11 @@ python app.py
 ```
 
 Then open [http://localhost:5000](http://localhost:5000) and begin your quest!
+
+## ☕ Support My Work
+
+If you find this project helpful, consider [buying me a coffee](https://ko-fi.com/laszlobeer)!  
+Your support helps me keep building and maintaining open-source tools. Thanks! ❤️
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/laszlobeer)
+
