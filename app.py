@@ -120,23 +120,38 @@ def get_installed_models():
         # First try API method
         response = requests.get(OLLAMA_HEALTH_URL, timeout=5)
         if response.status_code == 200:
-            models = [model['name'] for model in response.json().get('models', [])]
+            # FIX: Properly parse model names from API response
+            models = [model['model'] for model in response.json().get('models', []) 
+                     if 'model' in model]
             logging.info(f"Found {len(models)} models via API")
             return models
-    except:
-        pass
-    
+    except Exception as e:
+        logging.warning(f"API model fetch failed: {e}")
+
     try:
-        # Fallback to CLI method
+        # Fallback to CLI method with improved parsing
         result = subprocess.run(
             ["ollama", "list"], capture_output=True, text=True, check=True
         )
         lines = result.stdout.strip().splitlines()
         models = []
-        for line in lines[1:]:  # Skip header line
-            parts = line.split()
-            if parts:
-                models.append(parts[0])
+        if len(lines) > 1:  # Skip header line
+            for line in lines[1:]:
+                parts = line.split()
+                if parts:
+                    # Extract model name with tag
+                    model_name = parts[0]
+                    # Handle cases where model name has spaces
+                    if ':' in model_name:
+                        models.append(model_name)
+                    else:
+                        # Try to find the model name with tag in subsequent parts
+                        for part in parts[1:]:
+                            if ':' in part:
+                                models.append(f"{model_name}:{part.split(':')[1]}")
+                                break
+                        else:
+                            models.append(model_name)
         logging.info(f"Found {len(models)} installed models via CLI")
         return models
     except FileNotFoundError:
@@ -618,7 +633,8 @@ def check_ollama_health():
         return {
             "status": "up" if response.status_code == 200 else "down",
             "status_code": response.status_code,
-            "models": [model['name'] for model in response.json().get('models', [])][:3]
+            "models": [model['model'] for model in response.json().get('models', []) 
+                      if 'model' in model][:3]
         }
     except Exception as e:
         return {"status": "down", "error": str(e)}
