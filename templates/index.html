@@ -5,15 +5,72 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RPG Adventure - Start</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body class="start-page">
+<body class="theme-{{ theme }}">
     <div class="container">
-        <h1>RPG Adventure</h1>
-        <div class="intro">
-            <p>Welcome to an immersive RPG experience where your choices have permanent consequences.</p>
-            <p>Every action you take will shape the world around you in meaningful ways.</p>
+        <header>
+            <h1><i class="fas fa-dragon"></i> RPG Adventure</h1>
+            <p class="subtitle">Welcome to an immersive RPG experience where your choices have permanent consequences.</p>
+        </header>
+        
+        <div class="theme-selector">
+            <div class="theme-option {% if theme == 'fantasy' %}active{% endif %}" data-theme="fantasy">
+                <i class="fas fa-dragon"></i> Fantasy
+            </div>
+            <div class="theme-option {% if theme == 'cyberpunk' %}active{% endif %}" data-theme="cyberpunk">
+                <i class="fas fa-robot"></i> Cyberpunk
+            </div>
+            <div class="theme-option {% if theme == 'royal' %}active{% endif %}" data-theme="royal">
+                <i class="fas fa-crown"></i> Royal
+            </div>
+            <div class="theme-option {% if theme == 'arcade' %}active{% endif %}" data-theme="arcade">
+                <i class="fas fa-gamepad"></i> Arcade
+            </div>
+            <div class="theme-option {% if theme == 'nature' %}active{% endif %}" data-theme="nature">
+                <i class="fas fa-leaf"></i> Nature
+            </div>
+            <div class="theme-option {% if theme == 'space' %}active{% endif %}" data-theme="space">
+                <i class="fas fa-rocket"></i> Space
+            </div>
+            <div class="theme-option {% if theme == 'noir' %}active{% endif %}" data-theme="noir">
+                <i class="fas fa-user-secret"></i> Noir
+            </div>
+            <div class="theme-option {% if theme == 'ocean' %}active{% endif %}" data-theme="ocean">
+                <i class="fas fa-water"></i> Ocean
+            </div>
         </div>
-        <a href="{{ url_for('model_selection') }}" class="btn">Begin Your Adventure</a>
+        
+        <div class="start-content">
+            <p>Every action you take will shape the world around you in meaningful ways.</p>
+            <a href="{{ url_for('model_selection') }}" class="btn">
+                <i class="fas fa-dice"></i> Begin Your Adventure
+            </a>
+        </div>
     </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Theme selection
+            const themeOptions = document.querySelectorAll('.theme-option');
+            themeOptions.forEach(option => {
+                option.addEventListener('click', () => {
+                    themeOptions.forEach(o => o.classList.remove('active'));
+                    option.classList.add('active');
+                    const theme = option.dataset.theme;
+                    document.body.className = `theme-${theme}`;
+                    
+                    // Store theme in session
+                    fetch('/set-theme', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: `theme=${theme}`
+                    });
+                });
+            });
+        });
+    </script>
 </body>
 </html>

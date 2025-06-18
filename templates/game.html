@@ -5,34 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RPG Adventure</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <style>
-        .system-prompt {
-            background: rgba(30, 40, 50, 0.8);
-            padding: 15px;
-            border-radius: 8px;
-            margin-top: 20px;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-        
-        .system-prompt h3 {
-            color: var(--secondary);
-            margin-bottom: 10px;
-        }
-        
-        .system-prompt-content {
-            font-size: 0.9rem;
-            line-height: 1.4;
-        }
-    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body class="game-page">
+<body class="theme-{{ theme or 'light' }}">  <!-- Added default theme -->
     {% include 'model_bar.html' %}
     
     <div class="container">
         <div class="game-container">
             <div class="world-state">
-                <h2>World State</h2>
+                <h2><i class="fas fa-globe"></i> World State</h2>
                 <div id="world-state-content">
                     <!-- World state will be populated dynamically -->
                 </div>
@@ -45,18 +26,18 @@
                 
                 <div class="input-area">
                     <input type="text" id="command-input" placeholder="Enter your action...">
-                    <button id="submit-btn">Submit</button>
+                    <button id="submit-btn"><i class="fas fa-paper-plane"></i></button>
                 </div>
                 
                 <div id="consequence-display">
-                    <h3>Consequence:</h3>
+                    <h3><i class="fas fa-exclamation-triangle"></i> Consequence:</h3>
                     <p id="consequence-text"></p>
                 </div>
             </div>
         </div>
         
         <div class="system-prompt">
-            <h3>AI System Prompt</h3>
+            <h3><i class="fas fa-robot"></i> AI System Prompt</h3>
             <div class="system-prompt-content">
                 {{ system_prompt }}
             </div>
@@ -85,6 +66,24 @@
                 addMessage('dm', initialMessage);
             }
             
+            // NSFW State Management
+            let nsfwOn = {{ nsfw_on | default(false) | tojson }};  // Get initial state from backend
+            
+            // Function to update eye icon based on NSFW state
+            function updateCensoredIcon() {
+                const icon = censoredBtn.querySelector('i');
+                if (nsfwOn) {
+                    icon.classList.remove('fa-eye-slash');
+                    icon.classList.add('fa-eye');
+                } else {
+                    icon.classList.remove('fa-eye');
+                    icon.classList.add('fa-eye-slash');
+                }
+            }
+            
+            // Initialize eye icon
+            updateCensoredIcon();
+            
             // Submit command
             function submitCommand() {
                 const command = commandInput.value.trim();
@@ -97,7 +96,7 @@
                 
                 // Show loading indicator
                 submitBtn.disabled = true;
-                submitBtn.textContent = "Thinking...";
+                submitBtn.innerHTML = "<i class='fas fa-spinner fa-spin'></i>";
                 
                 // Send command to server
                 fetch('/command', {
@@ -152,7 +151,7 @@
                 })
                 .finally(() => {
                     submitBtn.disabled = false;
-                    submitBtn.textContent = "Submit";
+                    submitBtn.innerHTML = "<i class='fas fa-paper-plane'></i>";
                 });
             }
             
@@ -170,7 +169,13 @@
                 
                 const speakerSpan = document.createElement('div');
                 speakerSpan.classList.add('speaker');
-                speakerSpan.textContent = speaker === 'dm' ? 'Dungeon Master' : 'You';
+                if (speaker === 'dm') {
+                    speakerSpan.innerHTML = '<i class="fas fa-dragon"></i> Dungeon Master';
+                } else if (speaker === 'player') {
+                    speakerSpan.innerHTML = '<i class="fas fa-user"></i> You';
+                } else {
+                    speakerSpan.innerHTML = '<i class="fas fa-info-circle"></i> System';
+                }
                 
                 const textDiv = document.createElement('div');
                 textDiv.classList.add('text');
@@ -186,6 +191,10 @@
             
             // Button handlers
             censoredBtn.addEventListener('click', function() {
+                // Optimistically update UI
+                nsfwOn = !nsfwOn;
+                updateCensoredIcon();
+                
                 fetch('/command', {
                     method: 'POST',
                     headers: {
@@ -193,22 +202,22 @@
                     },
                     body: 'command=/censored'
                 })
-                .then(response => {
-                    if (!response.ok) {
-                        return response.text().then(text => { throw new Error(text) });
-                    }
-                    return response.json();
-                })
+                .then(response => response.json())
                 .then(data => {
-                    addMessage('system', data.message);
+                    if (data.status === 'success') {
+                        addMessage('system', data.message);
+                    } else {
+                        // Revert on error
+                        nsfwOn = !nsfwOn;
+                        updateCensoredIcon();
+                        addMessage('system', data.message || 'Error toggling NSFW mode');
+                    }
                 })
                 .catch(error => {
-                    try {
-                        const errorData = JSON.parse(error.message);
-                        addMessage('system', errorData.message);
-                    } catch (e) {
-                        addMessage('system', 'Error toggling censored mode');
-                    }
+                    // Revert on network error
+                    nsfwOn = !nsfwOn;
+                    updateCensoredIcon();
+                    addMessage('system', 'Network error. NSFW mode not toggled.');
                 });
             });
             
@@ -220,12 +229,7 @@
                     },
                     body: 'command=/redo'
                 })
-                .then(response => {
-                    if (!response.ok) {
-                        return response.text().then(text => { throw new Error(text) });
-                    }
-                    return response.json();
-                })
+                .then(response => response.json())
                 .then(data => {
                     if (data.status === 'success') {
                         // Remove last DM message and add new one
@@ -247,14 +251,6 @@
                     } else {
                         addMessage('system', data.message);
                     }
-                })
-                .catch(error => {
-                    try {
-                        const errorData = JSON.parse(error.message);
-                        addMessage('system', errorData.message);
-                    } catch (e) {
-                        addMessage('system', 'Error redoing last action');
-                    }
                 });
             });
             
@@ -266,22 +262,9 @@
                     },
                     body: 'command=/save'
                 })
-                .then(response => {
-                    if (!response.ok) {
-                        return response.text().then(text => { throw new Error(text) });
-                    }
-                    return response.json();
-                })
+                .then(response => response.json())
                 .then(data => {
                     addMessage('system', data.message);
-                })
-                .catch(error => {
-                    try {
-                        const errorData = JSON.parse(error.message);
-                        addMessage('system', errorData.message);
-                    } catch (e) {
-                        addMessage('system', 'Error saving adventure');
-                    }
                 });
             });
             
@@ -293,63 +276,9 @@
                     },
                     body: 'command=/consequences'
                 })
-                .then(response => {
-                    if (!response.ok) {
-                        return response.text().then(text => { throw new Error(text) });
-                    }
-                    return response.json();
-                })
+                .then(response => response.json())
                 .then(data => {
                     addMessage('system', data.message);
-                })
-                .catch(error => {
-                    try {
-                        const errorData = JSON.parse(error.message);
-                        addMessage('system', errorData.message);
-                    } catch (e) {
-                        addMessage('system', 'Error fetching consequences');
-                    }
-                });
-            });
-            
-            helpBtn.addEventListener('click', function() {
-                window.location.href = '/help';
-            });
-            
-            // Model switching functionality
-            document.querySelectorAll('.model-option').forEach(option => {
-                option.addEventListener('click', function() {
-                    const model = this.getAttribute('data-model');
-                    
-                    fetch('/change-model', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                        },
-                        body: `model=${encodeURIComponent(model)}`
-                    })
-                    .then(response => {
-                        if (!response.ok) {
-                            return response.text().then(text => { throw new Error(text) });
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (data.status === 'success') {
-                            document.getElementById('modelBtn').innerHTML = `<i>🧠</i> ${model}`;
-                            addMessage('system', data.message);
-                        } else {
-                            addMessage('system', 'Failed to change model');
-                        }
-                    })
-                    .catch(error => {
-                        try {
-                            const errorData = JSON.parse(error.message);
-                            addMessage('system', errorData.message);
-                        } catch (e) {
-                            addMessage('system', 'Error changing model');
-                        }
-                    });
                 });
             });
         });

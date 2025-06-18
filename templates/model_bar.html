@@ -1,9 +1,9 @@
 <div class="model-bar">
     <div class="model-selector">
-        <label>AI Model:</label>
+        <label><i class="fas fa-brain"></i> AI Model:</label>
         <div class="model-dropdown">
             <button class="model-btn" id="modelBtn">
-                <i>🧠</i> {{ session.ollama_model or 'Select Model' }}
+                <i class="fas fa-robot"></i> {{ session.ollama_model or 'Select Model' }}
             </button>
             <div class="model-dropdown-content" id="modelDropdown">
                 {% for model in session.installed_models %}
@@ -13,26 +13,78 @@
         </div>
     </div>
     
-    <div class="model-stats">
-        <div class="stat">
-            <div class="stat-value" id="creativity">0.7</div>
-            <div class="stat-label">Creativity</div>
-        </div>
-        <div class="stat">
-            <div class="stat-value" id="coherence">0.9</div>
-            <div class="stat-label">Coherence</div>
-        </div>
-        <div class="stat">
-            <div class="stat-value" id="randomness">0.6</div>
-            <div class="stat-label">Randomness</div>
+    <div class="theme-selector">
+        <label><i class="fas fa-palette"></i> Theme:</label>
+        <div class="theme-dropdown">
+            <button class="theme-btn">
+                <i class="fas fa-paint-brush"></i> Change Theme
+            </button>
+            <div class="theme-dropdown-content">
+                <div class="theme-option" data-theme="fantasy">Fantasy</div>
+                <div class="theme-option" data-theme="cyberpunk">Cyberpunk</div>
+                <div class="theme-option" data-theme="royal">Royal</div>
+                <div class="theme-option" data-theme="arcade">Arcade</div>
+                <div class="theme-option" data-theme="nature">Nature</div>
+                <div class="theme-option" data-theme="space">Space</div>
+                <div class="theme-option" data-theme="noir">Noir</div>
+                <div class="theme-option" data-theme="ocean">Ocean</div>
+            </div>
         </div>
     </div>
     
     <div class="controls">
-        <button id="help-btn">Help</button>
-        <button id="censored-btn">Toggle SFW Mode</button>
-        <button id="redo-btn">Redo Last</button>
-        <button id="save-btn">Save</button>
-        <button id="consequences-btn">Consequences</button>
+        <button id="help-btn"><i class="fas fa-question-circle"></i> Help</button>
+        <button id="censored-btn"><i class="fas fa-eye-slash"></i> Toggle SFW</button>
+        <button id="redo-btn"><i class="fas fa-undo"></i> Redo</button>
+        <button id="save-btn"><i class="fas fa-save"></i> Save</button>
+        <button id="consequences-btn"><i class="fas fa-exclamation-circle"></i> Consequences</button>
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Theme selection
+        const themeOptions = document.querySelectorAll('.theme-option');
+        themeOptions.forEach(option => {
+            option.addEventListener('click', () => {
+                const theme = option.dataset.theme;
+                document.body.className = `theme-${theme}`;
+                
+                // Store theme in session
+                fetch('/set-theme', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `theme=${theme}`
+                });
+            });
+        });
+        
+        // Model switching
+        document.querySelectorAll('.model-option').forEach(option => {
+            option.addEventListener('click', function() {
+                const model = this.getAttribute('data-model');
+                
+                fetch('/change-model', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `model=${encodeURIComponent(model)}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        document.getElementById('modelBtn').innerHTML = `<i class="fas fa-robot"></i> ${model}`;
+                    }
+                });
+            });
+        });
+        
+        // Button event listeners
+        document.getElementById('help-btn').addEventListener('click', function() {
+            window.location.href = '/help';
+        });
+    });
+</script>

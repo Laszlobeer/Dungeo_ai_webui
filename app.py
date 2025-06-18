@@ -78,6 +78,7 @@ def init_session():
         session['selected_genre'] = ""
         session['role'] = ""
         session['adventure_started'] = False
+        session['theme'] = "fantasy"  # Default theme
         session['player_choices'] = {
             "allies": [],
             "enemies": [],
@@ -654,10 +655,16 @@ def index():
     try:
         if 'censored' not in session:
             init_session()
-        return render_template('index.html')
+        return render_template('index.html', theme=session.get('theme', 'fantasy'))
     except Exception as e:
         logging.error(f"Error in index route: {str(e)}")
         return "An error occurred. Please check the logs.", 500
+
+@app.route('/set-theme', methods=['POST'])
+def set_theme():
+    theme = request.form.get('theme', 'fantasy')
+    session['theme'] = theme
+    return jsonify({'status': 'success', 'message': f'Theme set to {theme}'})
 
 @app.route('/model-selection', methods=['GET', 'POST'])
 def model_selection():
@@ -670,11 +677,13 @@ def model_selection():
             else:
                 return render_template('model_selection.html', 
                                       models=session.get('installed_models', []),
-                                      error="Please select a model")
+                                      error="Please select a model",
+                                      theme=session.get('theme', 'fantasy'))
         
         # GET request - show model selection
         return render_template('model_selection.html', 
-                              models=session.get('installed_models', []))
+                              models=session.get('installed_models', []),
+                              theme=session.get('theme', 'fantasy'))
     except Exception as e:
         logging.error(f"Error in model_selection route: {str(e)}")
         return redirect(url_for('index'))
@@ -794,7 +803,7 @@ def setup():
             return jsonify({"status": "error", "message": "Invalid genre selection"})
         
         # GET request - render setup page
-        return render_template('setup.html', genres=genres)
+        return render_template('setup.html', genres=genres, theme=session.get('theme', 'fantasy'))
     except Exception as e:
         logging.exception(f"Critical error in setup: {str(e)}")
         return jsonify({
@@ -816,7 +825,7 @@ def game():
             session['player_choices']
         )
         
-        return render_template('game.html', system_prompt=system_prompt)
+        return render_template('game.html', system_prompt=system_prompt, theme=session.get('theme', 'fantasy'))
     except Exception as e:
         logging.error(f"Error in game route: {str(e)}")
         return redirect(url_for('index'))
@@ -895,7 +904,7 @@ def process_command():
 @app.route('/help')
 def show_help():
     try:
-        return render_template('help.html')
+        return render_template('help.html', theme=session.get('theme', 'fantasy'))
     except Exception as e:
         logging.error(f"Error in help route: {str(e)}")
         return "Help page unavailable", 500

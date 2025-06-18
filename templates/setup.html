@@ -5,15 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Character Setup</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body class="setup-page">
-    {% include 'model_bar.html' %}
-    
+<body class="theme-{{ theme }}">
     <div class="container">
-        <h1>Create Your Character</h1>
+        <h1><i class="fas fa-user"></i> Create Your Character</h1>
         <form id="character-form">
             <div class="form-group">
-                <label for="genre">Choose a Genre:</label>
+                <label for="genre"><i class="fas fa-book"></i> Choose a Genre:</label>
                 <select id="genre" name="genre">
                     {% for key, (name, roles) in genres.items() %}
                         <option value="{{ key }}">{{ name }}</option>
@@ -22,18 +21,20 @@
             </div>
             
             <div class="form-group">
-                <label for="role">Select Your Role:</label>
+                <label for="role"><i class="fas fa-user-tag"></i> Select Your Role:</label>
                 <select id="role" name="role">
                     <!-- This will be populated dynamically by JavaScript -->
                 </select>
             </div>
             
             <div class="form-group">
-                <label for="character_name">Character Name:</label>
+                <label for="character_name"><i class="fas fa-signature"></i> Character Name:</label>
                 <input type="text" id="character_name" name="character_name" placeholder="Enter your character's name" value="Alex">
             </div>
             
-            <button type="submit" class="btn">Start Adventure</button>
+            <button type="submit" class="btn">
+                <i class="fas fa-play"></i> Start Adventure
+            </button>
         </form>
         
         <div id="loading" class="hidden">
