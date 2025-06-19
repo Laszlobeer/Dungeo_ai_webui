@@ -125,18 +125,37 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        // Add message to conversation
+        // Add message to conversation with freedom formatting
         function addMessage(speaker, text) {
             const messageDiv = document.createElement('div');
             messageDiv.classList.add('message', speaker);
             
             const speakerSpan = document.createElement('div');
             speakerSpan.classList.add('speaker');
-            speakerSpan.textContent = speaker === 'dm' ? 'Dungeon Master' : 'You';
+            if (speaker === 'dm') {
+                speakerSpan.textContent = 'Dungeon Master';
+            } else if (speaker === 'player') {
+                speakerSpan.textContent = 'You';
+            } else {
+                speakerSpan.textContent = 'System';
+            }
             
             const textDiv = document.createElement('div');
             textDiv.classList.add('text');
-            textDiv.textContent = text;
+            
+            // Format narrative commands differently
+            const lowerText = text.toLowerCase();
+            if (lowerText.includes("bend the story") || 
+                lowerText.includes("reshape reality") ||
+                lowerText.includes("i wish that") ||
+                lowerText.includes("let there be") ||
+                lowerText.includes("reality shifts") ||
+                lowerText.includes("i create") ||
+                lowerText.includes("i manifest")) {
+                textDiv.innerHTML = `<span class="reality-shift">${text}</span>`;
+            } else {
+                textDiv.textContent = text;
+            }
             
             messageDiv.appendChild(speakerSpan);
             messageDiv.appendChild(textDiv);

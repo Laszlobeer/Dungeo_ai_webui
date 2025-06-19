@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select AI Model - RPG Adventure</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="theme-{{ theme }}">
+    <div class="container">
+        <h1><i class="fas fa-brain"></i> Select Your AI Model</h1>
+        
+        {% if error %}
+        <div class="error-message">
+            {{ error }}
+        </div>
+        {% endif %}
+        
+        <div class="model-selection-container">
+            <form method="POST">
+                <div class="model-list">
+                    {% for model in models %}
+                    <label class="model-card">
+                        <input type="radio" name="model" value="{{ model }}" required>
+                        <div>
+                            <h3>{{ model }}</h3>
+                            <div class="model-info">
+                                <div class="model-stat"><i class="fas fa-lightbulb"></i> Creativity: 0.7</div>
+                                <div class="model-stat"><i class="fas fa-link"></i> Coherence: 0.8</div>
+                                <div class="model-stat"><i class="fas fa-bolt"></i> Speed: Fast</div>
+                            </div>
+                        </div>
+                    </label>
+                    {% endfor %}
+                </div>
+                
+                <button type="submit" class="btn">
+                    <i class="fas fa-arrow-right"></i> Continue to Character Setup
+                </button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

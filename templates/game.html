@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body class="theme-{{ theme or 'light' }}">  <!-- Added default theme -->
+<body class="theme-{{ theme or 'fantasy' }}">
     {% include 'model_bar.html' %}
     
     <div class="container">
@@ -36,6 +36,16 @@
             </div>
         </div>
         
+        <div class="freedom-tips">
+            <h3><i class="fas fa-lightbulb"></i> Freedom Tips</h3>
+            <ul>
+                <li>Try ANY action - the world will adapt to your choices</li>
+                <li>Use "create [type] [name]" to add new elements to the world</li>
+                <li>Start commands with "I bend the story to..." for narrative control</li>
+                <li>Your actions have permanent consequences that shape the world</li>
+            </ul>
+        </div>
+        
         <div class="system-prompt">
             <h3><i class="fas fa-robot"></i> AI System Prompt</h3>
             <div class="system-prompt-content">
@@ -60,29 +70,11 @@
             const consequencesBtn = document.getElementById('consequences-btn');
             const helpBtn = document.getElementById('help-btn');
             
-            // Add initial DM message (using tojson for proper escaping)
+            // Add initial DM message
             const initialMessage = {{ session.last_ai_reply | tojson }} || 'Welcome to your adventure!';
             if (initialMessage) {
                 addMessage('dm', initialMessage);
             }
-            
-            // NSFW State Management
-            let nsfwOn = {{ nsfw_on | default(false) | tojson }};  // Get initial state from backend
-            
-            // Function to update eye icon based on NSFW state
-            function updateCensoredIcon() {
-                const icon = censoredBtn.querySelector('i');
-                if (nsfwOn) {
-                    icon.classList.remove('fa-eye-slash');
-                    icon.classList.add('fa-eye');
-                } else {
-                    icon.classList.remove('fa-eye');
-                    icon.classList.add('fa-eye-slash');
-                }
-            }
-            
-            // Initialize eye icon
-            updateCensoredIcon();
             
             // Submit command
             function submitCommand() {
@@ -94,10 +86,6 @@
                 // Add player message to conversation
                 addMessage('player', command);
                 
-                // Show loading indicator
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = "<i class='fas fa-spinner fa-spin'></i>";
-                
                 // Send command to server
                 fetch('/command', {
                     method: 'POST',
@@ -106,14 +94,7 @@
                     },
                     body: `command=${encodeURIComponent(command)}`
                 })
-                .then(response => {
-                    if (!response.ok) {
-                        return response.text().then(text => { 
-                            throw new Error(text || 'Server error');
-                        });
-                    }
-                    return response.json();
-                })
+                .then(response => response.json())
                 .then(data => {
                     if (data.status === 'success') {
                         // Add DM response
@@ -131,27 +112,15 @@
                         if (data.audio_url) {
                             ttsPlayer.src = data.audio_url;
                             ttsPlayer.classList.remove('hidden');
-                            ttsPlayer.play().catch(e => {
-                                console.error('Failed to play audio:', e);
-                                addMessage('system', 'Audio playback failed');
-                            });
+                            ttsPlayer.play();
                         }
                     } else {
                         addMessage('system', data.message || 'Error processing command');
                     }
                 })
                 .catch(error => {
-                    try {
-                        const errorData = JSON.parse(error.message);
-                        addMessage('system', errorData.message || 'Error processing command');
-                    } catch (e) {
-                        addMessage('system', 'Reality glitches... try again');
-                    }
+                    addMessage('system', 'Error processing command');
                     console.error('Error:', error);
-                })
-                .finally(() => {
-                    submitBtn.disabled = false;
-                    submitBtn.innerHTML = "<i class='fas fa-paper-plane'></i>";
                 });
             }
             
@@ -162,7 +131,7 @@
                 }
             });
             
-            // Add message to conversation
+            // Add message to conversation with freedom formatting
             function addMessage(speaker, text) {
                 const messageDiv = document.createElement('div');
                 messageDiv.classList.add('message', speaker);
@@ -170,16 +139,29 @@
                 const speakerSpan = document.createElement('div');
                 speakerSpan.classList.add('speaker');
                 if (speaker === 'dm') {
-                    speakerSpan.innerHTML = '<i class="fas fa-dragon"></i> Dungeon Master';
+                    speakerSpan.textContent = 'Dungeon Master';
                 } else if (speaker === 'player') {
-                    speakerSpan.innerHTML = '<i class="fas fa-user"></i> You';
+                    speakerSpan.textContent = 'You';
                 } else {
-                    speakerSpan.innerHTML = '<i class="fas fa-info-circle"></i> System';
+                    speakerSpan.textContent = 'System';
                 }
                 
                 const textDiv = document.createElement('div');
                 textDiv.classList.add('text');
-                textDiv.textContent = text;
+                
+                // Format narrative commands differently
+                const lowerText = text.toLowerCase();
+                if (lowerText.includes("bend the story") || 
+                    lowerText.includes("reshape reality") ||
+                    lowerText.includes("i wish that") ||
+                    lowerText.includes("let there be") ||
+                    lowerText.includes("reality shifts") ||
+                    lowerText.includes("i create") ||
+                    lowerText.includes("i manifest")) {
+                    textDiv.innerHTML = `<span class="reality-shift">${text}</span>`;
+                } else {
+                    textDiv.textContent = text;
+                }
                 
                 messageDiv.appendChild(speakerSpan);
                 messageDiv.appendChild(textDiv);
@@ -191,10 +173,6 @@
             
             // Button handlers
             censoredBtn.addEventListener('click', function() {
-                // Optimistically update UI
-                nsfwOn = !nsfwOn;
-                updateCensoredIcon();
-                
                 fetch('/command', {
                     method: 'POST',
                     headers: {
@@ -204,20 +182,7 @@
                 })
                 .then(response => response.json())
                 .then(data => {
-                    if (data.status === 'success') {
-                        addMessage('system', data.message);
-                    } else {
-                        // Revert on error
-                        nsfwOn = !nsfwOn;
-                        updateCensoredIcon();
-                        addMessage('system', data.message || 'Error toggling NSFW mode');
-                    }
-                })
-                .catch(error => {
-                    // Revert on network error
-                    nsfwOn = !nsfwOn;
-                    updateCensoredIcon();
-                    addMessage('system', 'Network error. NSFW mode not toggled.');
+                    addMessage('system', data.message);
                 });
             });
             
@@ -243,10 +208,7 @@
                         if (data.audio_url) {
                             ttsPlayer.src = data.audio_url;
                             ttsPlayer.classList.remove('hidden');
-                            ttsPlayer.play().catch(e => {
-                                console.error('Failed to play audio:', e);
-                                addMessage('system', 'Audio playback failed');
-                            });
+                            ttsPlayer.play();
                         }
                     } else {
                         addMessage('system', data.message);

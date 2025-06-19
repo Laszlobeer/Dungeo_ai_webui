@@ -29,32 +29,30 @@ OLLAMA_API_URL = "http://localhost:11434/api/generate"
 OLLAMA_HEALTH_URL = "http://localhost:11434/api/tags"
 ALLTALK_API_URL = "http://localhost:7851/api/tts-generate"
 
-# Enhanced DM system prompt
+# Enhanced DM system prompt with player freedom
 DM_SYSTEM_PROMPT = """
 
 You are a masterful Dungeon Master guiding {character_name}, a {role} in a {genre} adventure. 
 Craft IMMEDIATE and PERMANENT consequences for every action. Follow these rules:
 
-1. ACTION-CONSEQUENCE SYSTEM:
+1. PLAYER FREEDOM:
+   - Players can attempt ANY action they imagine, no matter how unconventional
+   - Always accept player actions as valid starting points
+   - Never say "you can't do that" - instead show consequences
+   - Adapt the world to incorporate player choices organically
+
+2. ACTION-CONSEQUENCE SYSTEM:
    - Describe ONLY the outcomes of player actions and world events
-   - NEVER speak for the player or perform actions on their behalf
    - Consequences must logically follow from the action
    - Describe consequences naturally within your narration
    - Small actions create ripple effects through the narrative
 
-2. RESPONSE STYLE:
-   - Respond in natural narrative prose, NEVER in bullet points or structured formats
+3. RESPONSE STYLE:
+   - Respond in natural narrative prose, NEVER in bullet points
    - Weave consequences seamlessly into your descriptions
    - NEVER use labels like "a) b) c)" or "Immediate consequence:"
    - Show, don't tell - demonstrate consequences through storytelling
    - Focus on describing environments, NPC actions, and world reactions
-
-3. ROLE GUIDELINES:
-   - Set the scene and describe situations
-   - Play NPCs with distinct personalities and motivations
-   - Describe environmental changes and world events
-   - React to player choices as the world would
-   - NEVER control the player character or speak for the player
 
 4. WORLD EVOLUTION:
    - NPCs remember player choices and react accordingly
@@ -89,7 +87,8 @@ def init_session():
             "completed_quests": [],
             "active_quests": [],
             "world_events": [],
-            "consequences": []
+            "consequences": [],
+            "player_creations": []  # Track player-created entities
         }
         session['ollama_model'] = ""
         session['installed_models'] = get_installed_models()
@@ -121,7 +120,6 @@ def get_installed_models():
         # First try API method
         response = requests.get(OLLAMA_HEALTH_URL, timeout=5)
         if response.status_code == 200:
-            # FIX: Properly parse model names from API response
             models = [model['model'] for model in response.json().get('models', []) 
                      if 'model' in model]
             logging.info(f"Found {len(models)} models via API")
@@ -322,6 +320,12 @@ def get_current_state(player_choices):
             for cons in player_choices['consequences'][-3:]:
                 state.append(f"  - {cons}")
         
+        # Add player creations
+        if player_choices['player_creations']:
+            state.append("Player Creations:")
+            for creation in player_choices['player_creations'][-3:]:
+                state.append(f"  - {creation}")
+        
         return "\n".join(state)
     except Exception as e:
         logging.error(f"Error in get_current_state: {str(e)}")
@@ -339,6 +343,10 @@ def get_ai_response(prompt, model, censored=False, max_retries=3):
             return "Ollama is not running. Please start Ollama service."
     except:
         return "Ollama is not running. Please start Ollama service."
+    
+    # Add player freedom emphasis
+    if not censored:
+        prompt += "\n[IMPORTANT: Players can attempt ANY action. Always accept player actions as valid starting points.]"
     
     if censored:
         prompt += "\n[IMPORTANT: Content must be strictly family-friendly. Avoid any NSFW themes, violence, or mature content.]"
@@ -418,7 +426,8 @@ def generate_fallback_response(genre, role, character_name):
         "A mysterious figure approaches you. What do you do?",
         "You hear a strange noise nearby. How do you respond?",
         "A new opportunity presents itself. What action do you take?",
-        "Danger lurks in the shadows. What's your next move?"
+        "Danger lurks in the shadows. What's your next move?",
+        "The world bends to your will. What reality do you shape next?"
     ])
     
     return random.choice(genre_starter) + action
@@ -506,7 +515,12 @@ def process_narrative_command(user_input):
             "suddenly,",
             "miraculously,",
             "unexpectedly,",
-            "against all odds,"
+            "against all odds,",
+            "i wish that",
+            "let there be",
+            "reality shifts so that",
+            "i create",
+            "i manifest"
         ]
         
         for trigger in triggers:
@@ -531,11 +545,12 @@ def update_world_state(action, response, player_choices):
         
         # Detect and track key events
         key_phrases = {
-            "ally": ["joins you", "helps you", "becomes your ally"],
-            "enemy": ["attacks you", "becomes hostile", "swears revenge"],
-            "resource": ["find", "acquire", "obtain", "gain"],
-            "location": ["enter", "arrive at", "reach", "discover"],
-            "faction": ["guards", "thieves guild", "rebel alliance", "royal court"]
+            "ally": ["joins you", "helps you", "becomes your ally", "supports you", "swears loyalty"],
+            "enemy": ["attacks you", "becomes hostile", "swears revenge", "hunts you", "betrays you"],
+            "resource": ["find", "acquire", "obtain", "gain", "create", "invent"],
+            "location": ["enter", "arrive at", "reach", "discover", "create", "build"],
+            "faction": ["guards", "thieves guild", "rebel alliance", "royal court", "new faction"],
+            "reality": ["reality shifts", "world changes", "fabric bends", "laws of physics alter"]
         }
         
         for category, phrases in key_phrases.items():
@@ -543,6 +558,10 @@ def update_world_state(action, response, player_choices):
                 if phrase in response.lower():
                     player_choices['world_events'].append(f"{timestamp}: {category.upper()} event")
                     break
+        
+        # Track reality-bending events
+        if any(phrase in response.lower() for phrase in key_phrases["reality"]):
+            player_choices['world_events'].append(f"{timestamp}: REALITY ALTERED")
     except Exception as e:
         logging.error(f"Error updating world state: {str(e)}")
 
@@ -843,6 +862,38 @@ def process_command():
         # Handle special commands
         if user_input.startswith("/"):
             return handle_special_command(user_input.lower())
+        
+        # Handle create commands
+        if user_input.lower().startswith("create "):
+            parts = user_input.split()
+            if len(parts) > 2:
+                entity_type = parts[1].lower()
+                entity_name = " ".join(parts[2:])
+                
+                # Add to world state
+                if entity_type in ["npc", "character", "ally"]:
+                    session['player_choices']['allies'].append(entity_name)
+                    session['player_choices']['player_creations'].append(f"{entity_name} (NPC)")
+                elif entity_type in ["location", "place"]:
+                    session['player_choices']['discoveries'].append(entity_name)
+                    session['player_choices']['player_creations'].append(f"{entity_name} (Location)")
+                elif entity_type in ["item", "object", "artifact"]:
+                    session['player_choices']['resources'][entity_name] = 1
+                    session['player_choices']['player_creations'].append(f"{entity_name} (Item)")
+                elif entity_type in ["faction", "group"]:
+                    session['player_choices']['factions'][entity_name] = 0
+                    session['player_choices']['player_creations'].append(f"{entity_name} (Faction)")
+                
+                # Keep only the last 5 creations
+                if len(session['player_choices']['player_creations']) > 5:
+                    session['player_choices']['player_creations'] = session['player_choices']['player_creations'][-5:]
+                    
+                return jsonify({
+                    "status": "success",
+                    "message": f"You create {entity_name}",
+                    "consequence": f"New {entity_type} added to the world",
+                    "world_state": get_current_state(session['player_choices'])
+                })
         
         # Process regular command
         formatted_input = process_narrative_command(user_input)
