@@ -34,8 +34,9 @@
             
             <div class="form-group">
                 <label for="tts_voice"><i class="fas fa-volume-up"></i> TTS Voice:</label>
-                <select id="tts_voice" name="tts_voice">
-                    <!-- This will be populated dynamically by JavaScript -->
+                <div id="voice-loading" class="hidden">Scanning voices...</div>
+                <select id="tts_voice" name="tts_voice" disabled>
+                    <option value="">Loading voices...</option>
                 </select>
             </div>
             
@@ -57,6 +58,7 @@
             const genreSelect = document.getElementById('genre');
             const roleSelect = document.getElementById('role');
             const voiceSelect = document.getElementById('tts_voice');
+            const voiceLoading = document.getElementById('voice-loading');
             const form = document.getElementById('character-form');
             const loading = document.getElementById('loading');
             const startMessage = document.getElementById('start-message');
@@ -84,6 +86,9 @@
             
             // Populate voice dropdown
             function initializeVoiceDropdown() {
+                voiceLoading.classList.remove('hidden');
+                voiceSelect.disabled = true;
+                
                 fetch('/get-voices')
                     .then(response => response.json())
                     .then(data => {
@@ -94,22 +99,27 @@
                             option.textContent = voice;
                             voiceSelect.appendChild(option);
                         });
+                        voiceSelect.disabled = false;
+                        voiceLoading.classList.add('hidden');
                     })
                     .catch(error => {
                         console.error('Error loading voices:', error);
                         // Add fallback options
                         const fallbackVoices = [
-                            "FemaleBritishAccent_WhyLucyWhy_Voice_2.wav",
-                            "FemaleAmericanAccent_WhyLucyWhy_Voice_1.wav",
-                            "MaleAmericanAccent_WhyLucyWhy_Voice_1.wav"
+                            "British Female (FemaleBritishAccent_WhyLucyWhy_Voice_2.wav)",
+                            "American Female (FemaleAmericanAccent_WhyLucyWhy_Voice_1.wav)",
+                            "American Male (MaleAmericanAccent_WhyLucyWhy_Voice_1.wav)"
                         ];
                         
+                        voiceSelect.innerHTML = '';
                         fallbackVoices.forEach(voice => {
                             const option = document.createElement('option');
                             option.value = voice;
                             option.textContent = voice;
                             voiceSelect.appendChild(option);
                         });
+                        voiceSelect.disabled = false;
+                        voiceLoading.classList.add('hidden');
                     });
             }
             
@@ -146,13 +156,19 @@
                 loading.classList.remove('hidden');
                 startMessage.classList.add('hidden');
                 
-                // Validate inputs
-                const characterName = formData.get('character_name').trim();
+                // Validate character name
+                const characterName = document.getElementById('character_name').value.trim();
                 if (!characterName) {
                     loading.classList.add('hidden');
                     startMessage.textContent = 'Please enter a character name';
                     startMessage.classList.remove('hidden');
                     return;
+                }
+                
+                // Add voice selection to form data
+                const voice = voiceSelect.value;
+                if (voice) {
+                    formData.append('tts_voice', voice);
                 }
                 
                 fetch('/setup', {

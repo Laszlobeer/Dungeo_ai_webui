@@ -20,7 +20,7 @@
         <div class="model-selection-container">
             <form method="POST">
                 <div class="model-list">
-                    {% for model in models %}
+                    {% for model in session.installed_models %}
                     <label class="model-card">
                         <input type="radio" name="model" value="{{ model }}" required>
                         <div>

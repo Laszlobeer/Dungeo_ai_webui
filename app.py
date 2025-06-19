@@ -66,30 +66,35 @@ Current World State:
 """
 
 def get_available_voices():
-    """Scan available TTS voices and return only English ones"""
-    english_keywords = ['english', 'british', 'american', 'en', 'us', 'uk', 'eng']
+    """Scan available TTS voices with better detection"""
     voices = []
+    voice_exts = ('.wav', '.mp3', '.ogg', '.flac')
     
-    # Method 1: Try to get voices via API if available
+    # 1. Check API endpoint first
     try:
         response = requests.get("http://localhost:7851/api/get-voices", timeout=3)
         if response.status_code == 200:
             voice_data = response.json()
+            # Format: "Voice Name (filename.extension)"
             for voice in voice_data:
                 if 'voice' in voice:
-                    # Filter for English voices
-                    if any(kw in voice['voice'].lower() for kw in english_keywords):
-                        voices.append(voice['voice'])
-            logging.info(f"Found {len(voices)} English voices via API")
+                    # Extract base name without extension
+                    base_name = os.path.splitext(voice['voice'])[0]
+                    # Replace underscores and dashes with spaces
+                    clean_name = re.sub(r'[-_]', ' ', base_name)
+                    # Capitalize each word
+                    clean_name = clean_name.title()
+                    voices.append(f"{clean_name} ({voice['voice']})")
+            logging.info(f"Found {len(voices)} voices via API")
             return voices
     except Exception as e:
         logging.warning(f"API voice scan failed: {str(e)}")
     
-    # Method 2: Scan common voice directories
+    # 2. Scan common voice directories
     voice_dirs = [
         "/app/voices",          # Common Docker path
         "/usr/src/app/voices",   # AllTalk default
-        "voices",                # Local development
+        os.path.join(os.getcwd(), "voices"),  # Local development
         "/voices"                # Alternative Docker path
     ]
     
@@ -98,23 +103,27 @@ def get_available_voices():
             if os.path.exists(voice_dir):
                 logging.info(f"Scanning voice directory: {voice_dir}")
                 for file in os.listdir(voice_dir):
-                    if file.lower().endswith(".wav"):
-                        # Filter for English voices
-                        if any(kw in file.lower() for kw in english_keywords):
-                            voices.append(file)
+                    if file.lower().endswith(voice_exts):
+                        # Extract base name without extension
+                        base_name = os.path.splitext(file)[0]
+                        # Replace underscores and dashes with spaces
+                        clean_name = re.sub(r'[-_]', ' ', base_name)
+                        # Capitalize each word
+                        clean_name = clean_name.title()
+                        voices.append(f"{clean_name} ({file})")
                 if voices:
-                    logging.info(f"Found {len(voices)} English voices in {voice_dir}")
+                    logging.info(f"Found {len(voices)} voices in {voice_dir}")
                     return voices
         except Exception as e:
             logging.warning(f"Error scanning {voice_dir}: {str(e)}")
     
-    # Method 3: Fallback to known English voices
+    # 3. Fallback to known English voices
     fallback_voices = [
-        "FemaleBritishAccent_WhyLucyWhy_Voice_2.wav",
-        "FemaleAmericanAccent_WhyLucyWhy_Voice_极速赛车开奖直播官网1.wav",
-        "MaleAmericanAccent_WhyLucyWhy_Voice_1.wav"
+        "British Female (FemaleBritishAccent_WhyLucyWhy_Voice_2.wav)",
+        "American Female (FemaleAmericanAccent_WhyLucyWhy_Voice_1.wav)",
+        "American Male (MaleAmericanAccent_WhyLucyWhy_Voice_1.wav)"
     ]
-    logging.info("Using fallback English voices")
+    logging.info("Using fallback voices")
     return fallback_voices
 
 # Initialize session data
@@ -142,8 +151,14 @@ def init_session():
             "consequences": [],
             "player_creations": []  # Track player-created entities
         }
-        session['ollama_model'] = ""
         session['installed_models'] = get_installed_models()
+        
+        # Set default model if available
+        if session['installed_models']:
+            session['ollama_model'] = session['installed_models'][0]
+        else:
+            session['ollama_model'] = "llama3:instruct"
+            
         session['tts_enabled'] = True
         
         # Get available voices and set the default
@@ -153,12 +168,14 @@ def init_session():
         logging.info("Session initialized successfully")
     except Exception as e:
         logging.error(f"Error initializing session: {str(e)}")
-        # Set fallback voices if there was an error
+        # Set fallback values
         session['available_voices'] = [
-            "FemaleBritishAccent_WhyLucyWhy_Voice_2.wav",
-            "FemaleAmericanAccent_WhyLucyWhy_Voice_1.wav"
+            "British Female (FemaleBritishAccent_WhyLucyWhy_Voice_2.wav)",
+            "American Female (FemaleAmericanAccent_WhyLucyWhy_Voice_1.wav)"
         ]
         session['tts_voice'] = session['available_voices'][0]
+        session['ollama_model'] = "llama3:instruct"  # Fallback model
+        session['installed_models'] = ["llama3:instruct"]
 
 # Function to load banned words from file
 def load_banwords():
@@ -306,7 +323,7 @@ genres = {
     ]),
     "2": ("Sci-Fi", [
         "Space Marine", "Scientist", "Android", "Pilot", "Engineer", "Alien Diplomat",
-        "Space Pirate", "Navigator", "Medic", "Robot Technician", "Cybernetic Soldier",
+        "Space Pirate", "Navigator", "Medic", "Robot Technician", "极速赛车开奖直播官网Cybernetic Soldier",
         "Explorer", "Astrobiologist", "Quantum Hacker", "Starship Captain",
         "Galactic Trader", "AI Specialist", "Terraformer", "Cyberneticist", "Bounty Hunter"
     ]),
@@ -384,7 +401,7 @@ def get_current_state(player_choices):
                 state.append(f"  - {cons}")
         
         # Add player creations
-        if player极速赛车开奖直播官网_choices['player_creations']:
+        if player_choices['player_creations']:
             state.append("Player Creations:")
             for creation in player_choices['player_creations'][-3:]:
                 state.append(f"  - {creation}")
@@ -503,6 +520,11 @@ def speak(text, voice=None):
     # Use session voice if not specified
     if not voice:
         voice = session.get('tts_voice', 'FemaleBritishAccent_WhyLucyWhy_Voice_2.wav')
+    
+    # Extract filename from formatted voice string
+    if '(' in voice and ')' in voice:
+        # Extract filename from "Voice Name (filename.ext)"
+        voice = re.search(r'\((.*?)\)', voice).group(1)
     
     try:
         # Generate unique filename with timestamp
@@ -816,9 +838,9 @@ def get_voices():
     except Exception as e:
         logging.error(f"Error getting voices: {str(e)}")
         return jsonify({"voices": [
-            "FemaleBritishAccent_WhyLucyWhy_Voice_2.wav",
-            "FemaleAmericanAccent_WhyLucyWhy_Voice_1.wav",
-            "MaleAmericanAccent_WhyLucyWhy_Voice_1.wav"
+            "British Female (FemaleBritishAccent_WhyLucyWhy_Voice_2.wav)",
+            "American Female (FemaleAmericanAccent_WhyLucyWhy_Voice_1.wav)",
+            "American Male (MaleAmericanAccent_WhyLucyWhy_Voice_1.wav)"
         ]})
 
 @app.route('/set-voice', methods=['POST'])

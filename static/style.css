@@ -270,7 +270,7 @@ h1 {
     max-width: 600px;
     width: 100%;
     margin: 40px auto;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 10极速赛车开奖直播官网px 30px rgba(0, 0, 0, 0.3);
 }
 
 .setup-page h1 {
@@ -348,7 +348,7 @@ h1 {
 }
 
 .world-state h2 {
-    margin-bottom: 15px;
+    margin-bottom: 15极速赛车开奖直播官网px;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -658,7 +658,7 @@ body.theme-royal {
 
 .theme-royal .btn {
     background: linear-gradient(135deg, #8b5e3c, #c9a959);
-    color: #1e1a2a;
+    color: #f8f9fa;
 }
 
 /* Arcade Theme */
@@ -730,6 +730,29 @@ body.theme-ocean {
 
 .theme-ocean .btn {
     background: linear-gradient(135deg, #0077b6, #00b4d8);
+}
+
+/* Add TTS controls styling */
+#tts-controls {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.tts-btn {
+    padding: 8px 15px;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+/* Voice loading indicator */
+#voice-loading {
+    display: none;
+    padding: 10px;
+    text-align: center;
+    color: var(--secondary);
 }
 
 /* Responsive design */
