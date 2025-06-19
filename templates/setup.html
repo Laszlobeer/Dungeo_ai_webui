@@ -32,6 +32,13 @@
                 <input type="text" id="character_name" name="character_name" placeholder="Enter your character's name" value="Alex">
             </div>
             
+            <div class="form-group">
+                <label for="tts_voice"><i class="fas fa-volume-up"></i> TTS Voice:</label>
+                <select id="tts_voice" name="tts_voice">
+                    <!-- This will be populated dynamically by JavaScript -->
+                </select>
+            </div>
+            
             <button type="submit" class="btn">
                 <i class="fas fa-play"></i> Start Adventure
             </button>
@@ -49,6 +56,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             const genreSelect = document.getElementById('genre');
             const roleSelect = document.getElementById('role');
+            const voiceSelect = document.getElementById('tts_voice');
             const form = document.getElementById('character-form');
             const loading = document.getElementById('loading');
             const startMessage = document.getElementById('start-message');
@@ -74,8 +82,40 @@
                     });
             }
             
+            // Populate voice dropdown
+            function initializeVoiceDropdown() {
+                fetch('/get-voices')
+                    .then(response => response.json())
+                    .then(data => {
+                        voiceSelect.innerHTML = '';
+                        data.voices.forEach(voice => {
+                            const option = document.createElement('option');
+                            option.value = voice;
+                            option.textContent = voice;
+                            voiceSelect.appendChild(option);
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Error loading voices:', error);
+                        // Add fallback options
+                        const fallbackVoices = [
+                            "FemaleBritishAccent_WhyLucyWhy_Voice_2.wav",
+                            "FemaleAmericanAccent_WhyLucyWhy_Voice_1.wav",
+                            "MaleAmericanAccent_WhyLucyWhy_Voice_1.wav"
+                        ];
+                        
+                        fallbackVoices.forEach(voice => {
+                            const option = document.createElement('option');
+                            option.value = voice;
+                            option.textContent = voice;
+                            voiceSelect.appendChild(option);
+                        });
+                    });
+            }
+            
             // Initialize on page load
             initializeRoleDropdown();
+            initializeVoiceDropdown();
             
             // Update roles when genre changes
             genreSelect.addEventListener('change', function() {

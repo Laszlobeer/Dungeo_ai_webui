@@ -27,7 +27,8 @@ logging.basicConfig(
 
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
 OLLAMA_HEALTH_URL = "http://localhost:11434/api/tags"
-ALLTALK_API_URL = "http://localhost:7851/api/tts-generate"
+ALLTALK_API_URL = os.getenv('TTS_API_URL', 'http://localhost:7851/api/tts-generate')
+TTS_AUDIO_BASE_URL = os.getenv('TTS_AUDIO_URL', 'http://localhost:7851/outputs')
 
 # Enhanced DM system prompt with player freedom
 DM_SYSTEM_PROMPT = """
@@ -64,7 +65,6 @@ Current World State:
 {player_choices}
 """
 
-
 # Initialize session data
 def init_session():
     try:
@@ -93,9 +93,54 @@ def init_session():
         session['ollama_model'] = ""
         session['installed_models'] = get_installed_models()
         session['tts_enabled'] = True
+        session['available_voices'] = get_available_voices()
+        session['tts_voice'] = session['available_voices'][0] if session['available_voices'] else ""
         logging.info("Session initialized successfully")
     except Exception as e:
         logging.error(f"Error initializing session: {str(e)}")
+
+# Function to scan available TTS voices
+def get_available_voices():
+    """Scan available TTS voices"""
+    voices = []
+    
+    # Method 1: Try to get voices via API if available
+    try:
+        response = requests.get("http://localhost:7851/api/get-voices", timeout=3)
+        if response.status_code == 200:
+            voice_data = response.json()
+            for voice in voice_data:
+                if 'voice' in voice:
+                    voices.append(voice['voice'])
+            logging.info(f"Found {len(voices)} voices via API")
+            return voices
+    except Exception as e:
+        logging.warning(f"API voice scan failed: {str(e)}")
+    
+    # Method 2: Scan voice directory
+    voice_dir = "/app/voices"  # Common Docker path
+    if not os.path.exists(voice_dir):
+        voice_dir = "voices"  # Local development path
+    
+    try:
+        if os.path.exists(voice_dir):
+            for file in os.listdir(voice_dir):
+                if file.endswith(".wav"):
+                    voices.append(file)
+            logging.info(f"Found {len(voices)} voices in directory")
+    except Exception as e:
+        logging.warning(f"Directory voice scan failed: {str(e)}")
+    
+    # Method 3: Fallback to known voices
+    if not voices:
+        voices = [
+            "FemaleBritishAccent_WhyLucyWhy_Voice_2.wav",
+            "FemaleAmericanAccent_WhyLucyWhy_Voice_1.wav",
+            "MaleAmericanAccent_WhyLucyWhy_Voice_1.wav"
+        ]
+        logging.info("Using fallback voices")
+    
+    return voices
 
 # Function to load banned words from file
 def load_banwords():
@@ -432,11 +477,15 @@ def generate_fallback_response(genre, role, character_name):
     
     return random.choice(genre_starter) + action
 
-def speak(text, voice="FemaleBritishAccent_WhyLucyWhy_Voice_2.wav"):
+def speak(text, voice=None):
     """Generate TTS audio with improved error handling"""
     if not text.strip():
         return None
-        
+    
+    # Use session voice if not specified
+    if not voice:
+        voice = session.get('tts_voice', 'FemaleBritishAccent_WhyLucyWhy_Voice_2.wav')
+    
     try:
         # Generate unique filename with timestamp
         timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
@@ -454,8 +503,11 @@ def speak(text, voice="FemaleBritishAccent_WhyLucyWhy_Voice_2.wav"):
         
         # Verify successful generation
         if response.status_code == 200:
-            return f"http://localhost:7851/outputs/{output_name}.wav"
-        return None
+            base = TTS_AUDIO_BASE_URL.rstrip('/')  # Ensure no trailing slash
+            return f"{base}/{output_name}.wav"
+        else:
+            logging.error(f"TTS returned non-200 status: {response.status_code}")
+            return None
         
     except requests.exceptions.ConnectionError:
         logging.error("AllTalk TTS not running. Audio disabled.")
@@ -634,7 +686,9 @@ def handle_special_command(cmd):
                 "adventure_started": session.get('adventure_started'),
                 "selected_genre": session.get('selected_genre'),
                 "character_name": session.get('character_name'),
-                "role": session.get('role')
+                "role": session.get('role'),
+                "tts_voice": session.get('tts_voice'),
+                "available_voices": session.get('available_voices')
             }
             return jsonify({
                 "status": "info",
@@ -730,6 +784,25 @@ def get_roles():
         logging.error(f"Error in get_roles: {str(e)}")
         return jsonify({"roles": []})
 
+@app.route('/get-voices')
+def get_voices():
+    """API endpoint to get available voices"""
+    try:
+        voices = session.get('available_voices', [])
+        return jsonify({"voices": voices})
+    except Exception as e:
+        logging.error(f"Error getting voices: {str(e)}")
+        return jsonify({"voices": []})
+
+@app.route('/set-voice', methods=['POST'])
+def set_voice():
+    """Set the selected TTS voice"""
+    voice = request.form.get('voice')
+    if voice and voice in session.get('available_voices', []):
+        session['tts_voice'] = voice
+        return jsonify({'status': 'success', 'message': f'Voice set to {voice}'})
+    return jsonify({'status': 'error', 'message': 'Invalid voice selection'})
+
 @app.route('/setup', methods=['GET', 'POST'])
 def setup():
     try:
@@ -740,8 +813,9 @@ def setup():
             genre_id = request.form.get('genre')
             role = request.form.get('role')
             character_name = request.form.get('character_name', '').strip() or "Alex"
+            tts_voice = request.form.get('tts_voice', '')
             
-            logging.info(f"Received setup data: genre_id={genre_id}, role={role}, name={character_name}")
+            logging.info(f"Received setup data: genre_id={genre_id}, role={role}, name={character_name}, voice={tts_voice}")
             
             if genre_id in genres:
                 selected_genre, role_list = genres[genre_id]
@@ -756,6 +830,13 @@ def setup():
                     logging.warning(f"Invalid role selected: {role}. Valid roles: {role_list}")
                     role = random.choice(role_list) if role_list else "Adventurer"
                     logging.info(f"Using random role: {role}")
+                
+                # Validate voice selection
+                if tts_voice and tts_voice in session['available_voices']:
+                    session['tts_voice'] = tts_voice
+                else:
+                    # Use first available voice if selection invalid
+                    session['tts_voice'] = session['available_voices'][0] if session['available_voices'] else ""
                 
                 session['selected_genre'] = selected_genre
                 session['role'] = role
