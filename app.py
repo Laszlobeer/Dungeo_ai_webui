@@ -65,6 +65,58 @@ Current World State:
 {player_choices}
 """
 
+def get_available_voices():
+    """Scan available TTS voices and return only English ones"""
+    english_keywords = ['english', 'british', 'american', 'en', 'us', 'uk', 'eng']
+    voices = []
+    
+    # Method 1: Try to get voices via API if available
+    try:
+        response = requests.get("http://localhost:7851/api/get-voices", timeout=3)
+        if response.status_code == 200:
+            voice_data = response.json()
+            for voice in voice_data:
+                if 'voice' in voice:
+                    # Filter for English voices
+                    if any(kw in voice['voice'].lower() for kw in english_keywords):
+                        voices.append(voice['voice'])
+            logging.info(f"Found {len(voices)} English voices via API")
+            return voices
+    except Exception as e:
+        logging.warning(f"API voice scan failed: {str(e)}")
+    
+    # Method 2: Scan common voice directories
+    voice_dirs = [
+        "/app/voices",          # Common Docker path
+        "/usr/src/app/voices",   # AllTalk default
+        "voices",                # Local development
+        "/voices"                # Alternative Docker path
+    ]
+    
+    for voice_dir in voice_dirs:
+        try:
+            if os.path.exists(voice_dir):
+                logging.info(f"Scanning voice directory: {voice_dir}")
+                for file in os.listdir(voice_dir):
+                    if file.lower().endswith(".wav"):
+                        # Filter for English voices
+                        if any(kw in file.lower() for kw in english_keywords):
+                            voices.append(file)
+                if voices:
+                    logging.info(f"Found {len(voices)} English voices in {voice_dir}")
+                    return voices
+        except Exception as e:
+            logging.warning(f"Error scanning {voice_dir}: {str(e)}")
+    
+    # Method 3: Fallback to known English voices
+    fallback_voices = [
+        "FemaleBritishAccent_WhyLucyWhy_Voice_2.wav",
+        "FemaleAmericanAccent_WhyLucyWhy_Voice_极速赛车开奖直播官网1.wav",
+        "MaleAmericanAccent_WhyLucyWhy_Voice_1.wav"
+    ]
+    logging.info("Using fallback English voices")
+    return fallback_voices
+
 # Initialize session data
 def init_session():
     try:
@@ -93,54 +145,20 @@ def init_session():
         session['ollama_model'] = ""
         session['installed_models'] = get_installed_models()
         session['tts_enabled'] = True
+        
+        # Get available voices and set the default
         session['available_voices'] = get_available_voices()
         session['tts_voice'] = session['available_voices'][0] if session['available_voices'] else ""
+        
         logging.info("Session initialized successfully")
     except Exception as e:
         logging.error(f"Error initializing session: {str(e)}")
-
-# Function to scan available TTS voices
-def get_available_voices():
-    """Scan available TTS voices"""
-    voices = []
-    
-    # Method 1: Try to get voices via API if available
-    try:
-        response = requests.get("http://localhost:7851/api/get-voices", timeout=3)
-        if response.status_code == 200:
-            voice_data = response.json()
-            for voice in voice_data:
-                if 'voice' in voice:
-                    voices.append(voice['voice'])
-            logging.info(f"Found {len(voices)} voices via API")
-            return voices
-    except Exception as e:
-        logging.warning(f"API voice scan failed: {str(e)}")
-    
-    # Method 2: Scan voice directory
-    voice_dir = "/app/voices"  # Common Docker path
-    if not os.path.exists(voice_dir):
-        voice_dir = "voices"  # Local development path
-    
-    try:
-        if os.path.exists(voice_dir):
-            for file in os.listdir(voice_dir):
-                if file.endswith(".wav"):
-                    voices.append(file)
-            logging.info(f"Found {len(voices)} voices in directory")
-    except Exception as e:
-        logging.warning(f"Directory voice scan failed: {str(e)}")
-    
-    # Method 3: Fallback to known voices
-    if not voices:
-        voices = [
+        # Set fallback voices if there was an error
+        session['available_voices'] = [
             "FemaleBritishAccent_WhyLucyWhy_Voice_2.wav",
-            "FemaleAmericanAccent_WhyLucyWhy_Voice_1.wav",
-            "MaleAmericanAccent_WhyLucyWhy_Voice_1.wav"
+            "FemaleAmericanAccent_WhyLucyWhy_Voice_1.wav"
         ]
-        logging.info("Using fallback voices")
-    
-    return voices
+        session['tts_voice'] = session['available_voices'][0]
 
 # Function to load banned words from file
 def load_banwords():
@@ -326,8 +344,8 @@ def get_full_system_prompt(character_name, role, genre, player_choices):
         character_name=character_name,
         role=role,
         genre=genre,
-        player_choices=get_current_state(player_choices)
-    )
+        player_choices=get_current_state(player_choices))
+    
 
 def get_current_state(player_choices):
     """Generate a string representation of the current world state"""
@@ -366,7 +384,7 @@ def get_current_state(player_choices):
                 state.append(f"  - {cons}")
         
         # Add player creations
-        if player_choices['player_creations']:
+        if player极速赛车开奖直播官网_choices['player_creations']:
             state.append("Player Creations:")
             for creation in player_choices['player_creations'][-3:]:
                 state.append(f"  - {creation}")
@@ -788,11 +806,20 @@ def get_roles():
 def get_voices():
     """API endpoint to get available voices"""
     try:
-        voices = session.get('available_voices', [])
-        return jsonify({"voices": voices})
+        # Ensure we have voices in the session
+        if 'available_voices' not in session or not session['available_voices']:
+            # If not, try to get them
+            session['available_voices'] = get_available_voices()
+            session['tts_voice'] = session['available_voices'][0] if session['available_voices'] else ""
+        
+        return jsonify({"voices": session['available_voices']})
     except Exception as e:
         logging.error(f"Error getting voices: {str(e)}")
-        return jsonify({"voices": []})
+        return jsonify({"voices": [
+            "FemaleBritishAccent_WhyLucyWhy_Voice_2.wav",
+            "FemaleAmericanAccent_WhyLucyWhy_Voice_1.wav",
+            "MaleAmericanAccent_WhyLucyWhy_Voice_1.wav"
+        ]})
 
 @app.route('/set-voice', methods=['POST'])
 def set_voice():
