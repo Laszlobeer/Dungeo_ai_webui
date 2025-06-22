@@ -104,7 +104,6 @@ See the [LICENSE](LICENSE) file for details.
 ## 💡 Acknowledgements
 
 Created by **Laszlobeer**  
-Inspired by the solo RPG and local AI communities
 
 ---
 
