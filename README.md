@@ -1,3 +1,8 @@
+
+⚠️ **No Longer Maintained**
+This project is no longer being actively developed or supported. Feel free to fork it or use it as-is.
+
+
 # 🐉 Dungeo_ai_webui
 
 A fully local AI-powered Dungeon Master web UI — run solo RPG sessions with your own LLM!
